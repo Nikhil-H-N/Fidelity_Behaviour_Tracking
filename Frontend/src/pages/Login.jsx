@@ -99,13 +99,13 @@ export default function Login() {
 
           <div className="flex items-center gap-4 mb-6"><div className="flex-1 h-px bg-surface-200" /><span className="text-sm text-surface-400">or</span><div className="flex-1 h-px bg-surface-200" /></div>
 
-          <form onSubmit={handleLogin} className="space-y-4" onFocus={trackFormStart}>
+          <form onSubmit={handleLogin} className="space-y-4" onFocus={trackFormStart} autoComplete="off">
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1.5">Email</label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
                 <input type="email" className="input-field pl-11" placeholder="you@example.com" value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                  onChange={(e) => setForm({ ...form, email: e.target.value })} autoComplete="off" />
               </div>
             </div>
             <div>
@@ -116,7 +116,7 @@ export default function Login() {
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-surface-400" />
                 <input type={showPassword ? 'text' : 'password'} className="input-field pl-11 pr-11" placeholder="••••••••"
-                  value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                  value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600">
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
