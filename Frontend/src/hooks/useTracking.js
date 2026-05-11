@@ -1,16 +1,41 @@
+/**
+ * ============================================================
+ * FinovaWealth — Tracking Hooks (Backend-Integrated)
+ * File: Frontend/src/hooks/useTracking.js
+ * ============================================================
+ * Dual-write: events go to both Zustand (for local UI) AND
+ * the backend event queue (for MongoDB persistence).
+ * ============================================================
+ */
+
 import { useEffect, useCallback, useRef, useState } from 'react';
 import useStore from '../store/useStore';
+import { queueEvent } from '../api/eventService';
+
+/**
+ * Get the current sessionId from sessionStorage.
+ * Set by the session init logic in AuthContext or App.
+ */
+const getSessionId = () => sessionStorage.getItem('fw_sessionId') || null;
 
 // Track page visits
 export const usePageTracking = (pageName) => {
   const addEvent = useStore((s) => s.addEvent);
-  
+
   useEffect(() => {
-    addEvent({
+    const event = {
       type: 'page_view',
       page: pageName,
       timestamp: new Date().toISOString(),
       id: Date.now(),
+    };
+    addEvent(event);
+
+    // Send to backend
+    queueEvent({
+      eventType: 'page_view',
+      page: pageName,
+      sessionId: getSessionId(),
     });
   }, [pageName, addEvent]);
 };
@@ -18,14 +43,24 @@ export const usePageTracking = (pageName) => {
 // Track button clicks
 export const useClickTracking = () => {
   const addEvent = useStore((s) => s.addEvent);
-  
+
   const trackClick = useCallback((element, metadata = {}) => {
-    addEvent({
+    const event = {
       type: 'button_click',
       element,
       timestamp: new Date().toISOString(),
       id: Date.now(),
       ...metadata,
+    };
+    addEvent(event);
+
+    // Send to backend
+    queueEvent({
+      eventType: 'button_click',
+      element,
+      page: metadata.page || null,
+      sessionId: getSessionId(),
+      metadata,
     });
   }, [addEvent]);
 
@@ -42,7 +77,7 @@ export const useScrollDepth = () => {
       const scrollPercent = Math.round(
         (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100
       );
-      
+
       if (scrollPercent > maxDepth.current && scrollPercent % 25 === 0) {
         maxDepth.current = scrollPercent;
         addEvent({
@@ -50,6 +85,13 @@ export const useScrollDepth = () => {
           depth: `${scrollPercent}%`,
           timestamp: new Date().toISOString(),
           id: Date.now(),
+        });
+
+        // Send to backend
+        queueEvent({
+          eventType: 'scroll',
+          sessionId: getSessionId(),
+          metadata: { depth: scrollPercent },
         });
       }
     };
@@ -62,7 +104,7 @@ export const useScrollDepth = () => {
 // Track session duration
 export const useSessionTimer = () => {
   const [duration, setDuration] = useState(0);
-  
+
   useEffect(() => {
     const interval = setInterval(() => {
       setDuration((d) => d + 1);
@@ -88,17 +130,36 @@ export const useFormTracking = (formName) => {
     if (!started.current) {
       started.current = true;
       addEvent({ type: 'form_start', form: formName, timestamp: new Date().toISOString(), id: Date.now() });
+
+      queueEvent({
+        eventType: 'form_start',
+        sessionId: getSessionId(),
+        metadata: { form: formName },
+      });
     }
   }, [formName, addEvent]);
 
   const trackFormComplete = useCallback(() => {
+    started.current = false; // Prevent abandon event on unmount
     addEvent({ type: 'form_complete', form: formName, timestamp: new Date().toISOString(), id: Date.now() });
+
+    queueEvent({
+      eventType: 'form_submit',
+      sessionId: getSessionId(),
+      metadata: { form: formName },
+    });
   }, [formName, addEvent]);
 
   useEffect(() => {
     return () => {
       if (started.current) {
         addEvent({ type: 'form_abandon', form: formName, timestamp: new Date().toISOString(), id: Date.now() });
+
+        queueEvent({
+          eventType: 'form_abandon',
+          sessionId: getSessionId(),
+          metadata: { form: formName },
+        });
       }
     };
   }, [formName, addEvent]);

@@ -1,14 +1,58 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, TrendingUp, ArrowRight, Globe } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, TrendingUp, ArrowRight, Loader2 } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import toast from 'react-hot-toast';
 import { useFormTracking, usePageTracking } from '../hooks/useTracking';
+import { loginUser } from '../api/authService';
+import { useAuth } from '../context/AuthContext';
+import useGoogleAuth from '../hooks/useGoogleAuth';
 
 export default function Login() {
   usePageTracking('login');
   const { trackFormStart } = useFormTracking('login');
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: '', password: '' });
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { setAuthData } = useAuth();
+  const { handleCredentialResponse } = useGoogleAuth();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
+    if (!form.email || !form.password) {
+      toast.error('Email and password are required');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await loginUser({ email: form.email, password: form.password });
+
+      if (res.success) {
+        setAuthData(res.data.token, res.data.user);
+        toast.success('Welcome back!');
+        navigate('/dashboard');
+      } else if (res.data?.requiresVerification) {
+        toast.error(res.message);
+        navigate('/signup', { state: { email: form.email, step: 2 } });
+      } else {
+        toast.error(res.message || 'Login failed');
+      }
+    } catch (error) {
+      const msg = error.response?.data?.message || 'Login failed. Please try again.';
+      toast.error(msg);
+
+      // If unverified, redirect to OTP step
+      if (error.response?.status === 403 && error.response?.data?.data?.requiresVerification) {
+        navigate('/signup', { state: { email: form.email, step: 2 } });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex">
@@ -40,13 +84,22 @@ export default function Login() {
           <h2 className="text-2xl font-bold text-surface-900 mb-2">Sign in to your account</h2>
           <p className="text-surface-500 mb-8">Enter your credentials to access your portfolio</p>
 
-          <button className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-surface-200 rounded-xl font-medium text-surface-700 hover:bg-surface-50 transition-all shadow-sm mb-6">
-            <Globe className="w-5 h-5" /> Continue with Google
-          </button>
+          {/* Google Login */}
+          <div className="mb-6 flex justify-center">
+            <GoogleLogin
+              onSuccess={handleCredentialResponse}
+              onError={() => toast.error('Google sign-in failed')}
+              theme="outline"
+              size="large"
+              width="100%"
+              text="continue_with"
+              shape="rectangular"
+            />
+          </div>
 
           <div className="flex items-center gap-4 mb-6"><div className="flex-1 h-px bg-surface-200" /><span className="text-sm text-surface-400">or</span><div className="flex-1 h-px bg-surface-200" /></div>
 
-          <form onSubmit={(e) => e.preventDefault()} className="space-y-4" onFocus={trackFormStart}>
+          <form onSubmit={handleLogin} className="space-y-4" onFocus={trackFormStart}>
             <div>
               <label className="block text-sm font-medium text-surface-700 mb-1.5">Email</label>
               <div className="relative">
@@ -70,9 +123,9 @@ export default function Login() {
                 </button>
               </div>
             </div>
-            <Link to="/dashboard" className="btn-primary w-full py-3.5 gap-2 mt-2">
-              Sign In <ArrowRight className="w-5 h-5" />
-            </Link>
+            <button type="submit" disabled={loading} className="btn-primary w-full py-3.5 gap-2 mt-2 disabled:opacity-60">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign In <ArrowRight className="w-5 h-5" /></>}
+            </button>
           </form>
 
           <p className="text-center text-sm text-surface-500 mt-6">
