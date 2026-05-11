@@ -31,7 +31,6 @@ env/
 Thumbs.db
 
 # Python models / heavy files
-models/
 checkpoints/
 *.pt
 *.pth
