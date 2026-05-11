@@ -157,7 +157,7 @@ const verifySignupOTP = async (req, res) => {
       });
     }
 
-    if (!user.otp || user.otp !== otp) {
+    if (!user.otp || user.otp !== String(otp)) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP. Please check and try again.",
@@ -176,6 +176,8 @@ const verifySignupOTP = async (req, res) => {
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
+    
+    console.log(`✅ User ${user.email} verified and updated in database.`);
 
     const token = generateToken(user);
 
@@ -483,7 +485,7 @@ const verifyResetOTP = async (req, res) => {
       });
     }
 
-    if (!user.resetOtp || user.resetOtp !== otp) {
+    if (!user.resetOtp || user.resetOtp !== String(otp)) {
       return res.status(400).json({
         success: false,
         message: "Invalid OTP. Please check and try again.",
@@ -541,7 +543,7 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    if (!user.resetOtp || user.resetOtp !== otp) {
+    if (!user.resetOtp || user.resetOtp !== String(otp)) {
       return res.status(400).json({
         success: false,
         message: "Invalid or expired reset session. Please start over.",

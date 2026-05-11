@@ -128,8 +128,6 @@ const userSchema = new mongoose.Schema(
 );
 
 /* ── Indexes ──────────────────────────────────────────────── */
-userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ googleId: 1 }, { sparse: true });
 userSchema.index({ authProvider: 1 });
 userSchema.index({ createdAt: -1 });
 
