@@ -50,6 +50,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/events", require("./routes/eventRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
+app.use("/api/analytics", require("./routes/analyticsRoutes"));
 
 // ── 404 Handler ──
 app.use((_req, res) => {

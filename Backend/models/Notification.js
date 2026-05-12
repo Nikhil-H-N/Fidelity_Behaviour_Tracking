@@ -69,6 +69,27 @@ const notificationSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+
+    /** Notification category for behavioral triggers */
+    notificationType: {
+      type: String,
+      enum: ["transactional", "re_engagement", "nudge", "alert", "reminder", "promotional"],
+      default: "transactional",
+    },
+
+    /** Delivery status tracking */
+    deliveryStatus: {
+      type: String,
+      enum: ["queued", "sending", "delivered", "bounced", "rejected"],
+      default: "queued",
+    },
+
+    /** Why this notification was triggered */
+    triggerReason: {
+      type: String,
+      trim: true,
+      default: null,
+    },
   },
   {
     timestamps: true,

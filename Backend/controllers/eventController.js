@@ -10,6 +10,8 @@
 
 const Event = require("../models/Event");
 const Session = require("../models/Session");
+const { processBatchEvents, recordFormAbandonment } = require("../services/trackingService");
+const { processTriggeredRules } = require("../services/triggerEngine");
 
 /**
  * POST /api/events
@@ -38,24 +40,22 @@ const trackEvent = async (req, res) => {
       });
     }
 
-    // Attach userId and defaults
-    const enriched = payload.map((e) => ({
-      userId,
-      sessionId: e.sessionId,
-      eventType: e.eventType,
-      page: e.page || null,
-      element: e.element || null,
-      source: e.source || null,
-      metadata: e.metadata || {},
-      timestamp: e.timestamp || new Date(),
-    }));
+    // Process through tracking service (enrichment + intent + rules)
+    const result = await processBatchEvents(userId, payload);
 
-    const created = await Event.insertMany(enriched, { ordered: false });
+    // Process any triggered behavioral rules
+    if (result.triggers && result.triggers.length > 0) {
+      await processTriggeredRules(userId, result.triggers);
+    }
 
     return res.status(201).json({
       success: true,
-      message: `${created.length} event(s) tracked`,
-      data: { count: created.length },
+      message: `${result.created} event(s) tracked`,
+      data: {
+        count: result.created,
+        intentScore: result.intentScore,
+        triggersCount: result.triggers?.length || 0,
+      },
     });
   } catch (error) {
     console.error(`❌  Event tracking error: ${error.message}`);
@@ -80,14 +80,16 @@ const createSession = async (req, res) => {
       });
     }
 
-    const { device, browser, location } = req.body;
+    const { device, browser, location, entrySource } = req.body;
 
     const session = await Session.create({
       userId,
       device: device || "unknown",
       browser: browser || "unknown",
       location: location || "unknown",
+      entrySource: entrySource || "direct",
       sessionStart: new Date(),
+      lastActive: new Date(),
       status: "active",
     });
 
@@ -105,4 +107,92 @@ const createSession = async (req, res) => {
   }
 };
 
-module.exports = { trackEvent, createSession };
+/**
+ * POST /api/events/session/end
+ * Ends an active session.
+ */
+const endSession = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    const { sessionId, pagesVisited } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({
+        success: false,
+        message: "sessionId is required",
+      });
+    }
+
+    const session = await Session.findOne({ _id: sessionId, userId });
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: "Session not found",
+      });
+    }
+
+    const sessionEnd = new Date();
+    const duration = Math.round(
+      (sessionEnd - new Date(session.sessionStart)) / 1000
+    );
+
+    session.sessionEnd = sessionEnd;
+    session.duration = duration;
+    session.status = duration < 10 ? "abandoned" : "completed";
+    session.bounce = duration < 10;
+
+    if (pagesVisited && pagesVisited.length > 0) {
+      session.pagesVisited = [
+        ...new Set([...session.pagesVisited, ...pagesVisited]),
+      ];
+    }
+
+    await session.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Session ended",
+      data: { duration, status: session.status },
+    });
+  } catch (error) {
+    console.error(`❌  Session end error: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to end session",
+    });
+  }
+};
+
+/**
+ * POST /api/events/form-abandon
+ * Records a form abandonment event with context.
+ */
+const trackFormAbandonment = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const event = await recordFormAbandonment(userId, req.body);
+
+    return res.status(201).json({
+      success: true,
+      message: "Form abandonment tracked",
+      data: { eventId: event._id },
+    });
+  } catch (error) {
+    console.error(`❌  Form abandonment error: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to track form abandonment",
+    });
+  }
+};
+
+module.exports = { trackEvent, createSession, endSession, trackFormAbandonment };
+

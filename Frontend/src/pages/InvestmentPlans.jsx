@@ -1,10 +1,19 @@
 import { motion } from 'framer-motion';
 import { Check, ArrowRight, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 import { investmentPlans } from '../data/mockData';
-import { usePageTracking } from '../hooks/useTracking';
+import { usePageTracking, useClickTracking } from '../hooks/useTracking';
+import InvestmentPlanWizard from '../components/modals/InvestmentPlanWizard';
 
 export default function InvestmentPlans() {
   usePageTracking('investment-plans');
+  const trackClick = useClickTracking();
+  const [wizard, setWizard] = useState({ open: false, planName: '' });
+
+  const openWizard = (plan) => {
+    trackClick('get_started', { plan: plan.name, page: 'investment-plans' });
+    setWizard({ open: true, planName: plan.name });
+  };
 
   return (
     <div className="space-y-6">
@@ -37,7 +46,7 @@ export default function InvestmentPlans() {
                 </div>
               ))}
             </div>
-            <button className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+            <button onClick={() => openWizard(plan)} className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
               i === 0 ? 'btn-primary' : 'btn-secondary'
             }`}>
               Get Started <ArrowRight className="w-4 h-4" />
@@ -45,6 +54,13 @@ export default function InvestmentPlans() {
           </motion.div>
         ))}
       </div>
+
+      {/* Investment Plan Wizard Modal */}
+      <InvestmentPlanWizard
+        isOpen={wizard.open}
+        onClose={() => setWizard({ open: false, planName: '' })}
+        planName={wizard.planName}
+      />
     </div>
   );
 }

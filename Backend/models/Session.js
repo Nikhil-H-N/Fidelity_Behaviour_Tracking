@@ -84,6 +84,29 @@ const sessionSchema = new mongoose.Schema(
       enum: ["active", "completed", "abandoned"],
       default: "active",
     },
+
+    /** Last user activity timestamp (for inactivity detection) */
+    lastActive: {
+      type: Date,
+      default: Date.now,
+    },
+
+    /** Traffic source: direct, organic, email_campaign, referral */
+    entrySource: {
+      type: String,
+      trim: true,
+      default: "direct",
+    },
+
+    /** Ordered navigation path with timestamps */
+    navigationPath: {
+      type: [{
+        page: String,
+        timestamp: { type: Date, default: Date.now },
+        duration: { type: Number, default: 0 },
+      }],
+      default: [],
+    },
   },
   {
     timestamps: true,

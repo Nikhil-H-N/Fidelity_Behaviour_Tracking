@@ -1,12 +1,21 @@
 import { motion } from 'framer-motion';
 import { LineChart, Plus, Pause, Play, Calendar, TrendingUp, ArrowUpRight } from 'lucide-react';
+import { useState } from 'react';
 import { activeSIPs } from '../data/mockData';
-import { usePageTracking } from '../hooks/useTracking';
+import { usePageTracking, useClickTracking } from '../hooks/useTracking';
+import SIPCreationModal from '../components/modals/SIPCreationModal';
 
 export default function SIPPlans() {
   usePageTracking('sip-plans');
+  const trackClick = useClickTracking();
+  const [sipModalOpen, setSipModalOpen] = useState(false);
 
   const totalMonthly = activeSIPs.reduce((s, sip) => s + sip.amount, 0);
+
+  const openSipModal = () => {
+    trackClick('start_new_sip', { page: 'sip-plans' });
+    setSipModalOpen(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -15,7 +24,7 @@ export default function SIPPlans() {
           <h1 className="text-2xl font-bold text-surface-900">SIP Plans</h1>
           <p className="text-surface-500 text-sm mt-1">Manage your systematic investment plans</p>
         </div>
-        <button className="btn-primary text-sm py-2.5 px-5 gap-2"><Plus className="w-4 h-4" /> Start New SIP</button>
+        <button onClick={openSipModal} className="btn-primary text-sm py-2.5 px-5 gap-2"><Plus className="w-4 h-4" /> Start New SIP</button>
       </div>
 
       {/* Summary */}
@@ -65,6 +74,9 @@ export default function SIPPlans() {
           </motion.div>
         ))}
       </div>
+
+      {/* SIP Creation Modal */}
+      <SIPCreationModal isOpen={sipModalOpen} onClose={() => setSipModalOpen(false)} />
     </div>
   );
 }

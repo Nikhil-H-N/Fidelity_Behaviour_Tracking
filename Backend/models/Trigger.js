@@ -55,6 +55,50 @@ const triggerSchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
+
+    /** JSON condition object for rule engine evaluation */
+    triggerCondition: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+
+    /** Number of matching events required to fire */
+    eventThreshold: {
+      type: Number,
+      default: 1,
+    },
+
+    /** Cooldown period in minutes before trigger can fire again */
+    cooldown: {
+      type: Number,
+      default: 60,
+    },
+
+    /** Action to take: email, notification, flag, webhook */
+    triggerAction: {
+      type: String,
+      enum: ["email", "in_app", "flag", "webhook", "sms"],
+      default: "in_app",
+    },
+
+    /** Email template identifier for email actions */
+    emailTemplate: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    /** Whether this trigger rule is active */
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    /** Last time this trigger fired */
+    lastFiredAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true, // createdAt + updatedAt

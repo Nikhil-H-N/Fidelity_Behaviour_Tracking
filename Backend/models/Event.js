@@ -35,6 +35,13 @@ const EVENT_TYPES = [
   "session_end",
   "notification_open",
   "return_visit",
+  "field_focus",
+  "field_change",
+  "form_save_draft",
+  "investment_intent",
+  "modal_open",
+  "modal_close",
+  "page_exit",
 ];
 
 const eventSchema = new mongoose.Schema(
@@ -79,6 +86,63 @@ const eventSchema = new mongoose.Schema(
 
     /** Traffic source, e.g. "organic", "email_campaign", "direct" */
     source: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    /** Button name for click events, e.g. "Invest Now" */
+    buttonName: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    /** Form type for form events, e.g. "mutual_fund_invest" */
+    formType: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    /** Specific field name for field-level tracking */
+    fieldName: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    /** Duration in seconds (time spent on page, form fill time) */
+    duration: {
+      type: Number,
+      default: null,
+    },
+
+    /** Scroll depth percentage (0-100) */
+    scrollDepth: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: null,
+    },
+
+    /** Computed intent score for this interaction (0-100) */
+    intentScore: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: null,
+    },
+
+    /** Device type: mobile, desktop, tablet */
+    device: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    /** Browser name, e.g. "Chrome 125" */
+    browser: {
       type: String,
       trim: true,
       default: null,
