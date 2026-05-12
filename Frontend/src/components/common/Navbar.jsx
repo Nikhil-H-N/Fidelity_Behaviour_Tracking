@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ChevronDown, Bell, User, TrendingUp } from 'lucide-react';
+import { Menu, X, ChevronDown, Bell, User, TrendingUp, Shield } from 'lucide-react';
 import useStore from '../../store/useStore';
 
 const navLinks = [
@@ -94,6 +94,10 @@ export default function Navbar() {
             <Link to="/profile" className="p-2 rounded-lg hover:bg-surface-50 transition-colors">
               <User className="w-5 h-5 text-surface-500" />
             </Link>
+            <Link to="/admin-login" className="text-sm py-2 px-4 font-medium text-surface-500 hover:text-surface-900 transition-colors flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5" />
+              Admin
+            </Link>
             <Link to="/login" className="btn-secondary text-sm py-2 px-4">Log In</Link>
             <Link to="/signup" className="btn-primary text-sm py-2 px-4">Get Started</Link>
           </div>
@@ -123,9 +127,15 @@ export default function Navbar() {
                   ))}
                 </div>
               ))}
-              <div className="pt-4 flex gap-3">
-                <Link to="/login" className="btn-secondary flex-1 text-sm py-2.5">Log In</Link>
-                <Link to="/signup" className="btn-primary flex-1 text-sm py-2.5">Get Started</Link>
+              <div className="pt-4 space-y-2">
+                <Link to="/admin-login" className="flex items-center justify-center gap-1.5 text-sm py-2.5 text-surface-500 hover:text-surface-900 border border-surface-200 rounded-xl font-medium">
+                  <Shield className="w-3.5 h-3.5" />
+                  Admin Login
+                </Link>
+                <div className="flex gap-3">
+                  <Link to="/login" className="btn-secondary flex-1 text-sm py-2.5">Log In</Link>
+                  <Link to="/signup" className="btn-primary flex-1 text-sm py-2.5">Get Started</Link>
+                </div>
               </div>
             </div>
           </motion.div>

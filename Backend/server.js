@@ -49,6 +49,7 @@ app.get("/api/health", (_req, res) => {
 // ── API Routes ──
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/events", require("./routes/eventRoutes"));
+app.use("/api/admin", require("./routes/adminRoutes"));
 
 // ── 404 Handler ──
 app.use((_req, res) => {
@@ -72,3 +73,4 @@ app.listen(PORT, () => {
   console.log(`\n🚀  FinovaWealth API running on port ${PORT}`);
   console.log(`📍  Environment: ${process.env.NODE_ENV || "development"}\n`);
 });
+

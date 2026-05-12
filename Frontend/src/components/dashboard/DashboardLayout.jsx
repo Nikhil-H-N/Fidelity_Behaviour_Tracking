@@ -24,12 +24,7 @@ const navItems = [
     { name: 'Goal Planning', icon: Target, path: '/goal-planning' },
     { name: 'Retirement', icon: Shield, path: '/retirement-planning' },
   ]},
-  { section: 'Analytics', items: [
-    { name: 'Behavioral', icon: Activity, path: '/behavioral-analytics' },
-    { name: 'Event Tracking', icon: Radio, path: '/event-tracking' },
-    { name: 'Session Timeline', icon: Clock, path: '/session-timeline' },
-    { name: 'Admin Analytics', icon: Users, path: '/admin-analytics' },
-  ]},
+
   { section: 'Other', items: [
     { name: 'AI Insights', icon: Brain, path: '/ai-recommendations' },
     { name: 'Notifications', icon: Bell, path: '/notifications' },

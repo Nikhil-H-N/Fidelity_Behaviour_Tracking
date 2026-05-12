@@ -3,11 +3,14 @@ import { lazy, Suspense } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import AdminProtectedRoute from './components/common/AdminProtectedRoute';
 import DashboardLayout from './components/dashboard/DashboardLayout';
+import AdminDashboardLayout from './components/dashboard/AdminDashboardLayout';
 
 // Lazy load pages
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/Login'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const Signup = lazy(() => import('./pages/Signup'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
@@ -19,10 +22,6 @@ const SIPPlans = lazy(() => import('./pages/SIPPlans'));
 const InvestmentPlans = lazy(() => import('./pages/InvestmentPlans'));
 const GoalPlanning = lazy(() => import('./pages/GoalPlanning'));
 const RetirementPlanning = lazy(() => import('./pages/RetirementPlanning'));
-const BehavioralAnalytics = lazy(() => import('./pages/BehavioralAnalytics'));
-const EventTracking = lazy(() => import('./pages/EventTracking'));
-const SessionTimeline = lazy(() => import('./pages/SessionTimeline'));
-const AdminAnalytics = lazy(() => import('./pages/AdminAnalytics'));
 const AIRecommendations = lazy(() => import('./pages/AIRecommendations'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const ProfileSettings = lazy(() => import('./pages/ProfileSettings'));
@@ -30,6 +29,15 @@ const About = lazy(() => import('./pages/About'));
 const Blog = lazy(() => import('./pages/Blog'));
 const Contact = lazy(() => import('./pages/Contact'));
 const Help = lazy(() => import('./pages/Help'));
+
+// Admin pages (lazy loaded)
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
+const AdminBehavioral = lazy(() => import('./pages/admin/AdminBehavioral'));
+const AdminEventTracking = lazy(() => import('./pages/admin/AdminEventTracking'));
+const AdminSessionTimeline = lazy(() => import('./pages/admin/AdminSessionTimeline'));
+const AdminAnalyticsPage = lazy(() => import('./pages/admin/AdminAnalyticsPage'));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 
 function PageLoader() {
   return (
@@ -65,6 +73,7 @@ export default function App() {
             {/* Public pages */}
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/admin-login" element={<AdminLogin />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
@@ -73,7 +82,7 @@ export default function App() {
             <Route path="/contact" element={<Contact />} />
             <Route path="/help" element={<Help />} />
 
-            {/* Dashboard pages (protected + sidebar layout) */}
+            {/* Dashboard pages (protected + sidebar layout) — regular users */}
             <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/portfolio" element={<Portfolio />} />
@@ -83,13 +92,20 @@ export default function App() {
               <Route path="/investment-plans" element={<InvestmentPlans />} />
               <Route path="/goal-planning" element={<GoalPlanning />} />
               <Route path="/retirement-planning" element={<RetirementPlanning />} />
-              <Route path="/behavioral-analytics" element={<BehavioralAnalytics />} />
-              <Route path="/event-tracking" element={<EventTracking />} />
-              <Route path="/session-timeline" element={<SessionTimeline />} />
-              <Route path="/admin-analytics" element={<AdminAnalytics />} />
               <Route path="/ai-recommendations" element={<AIRecommendations />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/profile" element={<ProfileSettings />} />
+            </Route>
+
+            {/* Admin pages (admin-only protected + admin sidebar layout) */}
+            <Route element={<AdminProtectedRoute><AdminDashboardLayout /></AdminProtectedRoute>}>
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/behavioral-analytics" element={<AdminBehavioral />} />
+              <Route path="/admin/event-tracking" element={<AdminEventTracking />} />
+              <Route path="/admin/session-timeline" element={<AdminSessionTimeline />} />
+              <Route path="/admin/analytics" element={<AdminAnalyticsPage />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
             </Route>
 
             {/* Redirect for nav links */}

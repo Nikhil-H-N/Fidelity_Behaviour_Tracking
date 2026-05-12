@@ -9,32 +9,104 @@
  */
 
 const mongoose = require("mongoose");
+const dns = require("dns");
+
+// Force Node.js DNS resolver to prefer IPv4 — fixes the common
+// "querySrv ECONNREFUSED" error on certain Windows / ISP networks.
+dns.setDefaultResultOrder("ipv4first");
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 3000;
+
+// Non-SRV fallback URI (used when SRV DNS resolution fails).
+// Built from the actual shard hostnames of the Atlas cluster.
+const buildFallbackUri = () => {
+  const primary = process.env.MONGO_URI;
+  if (!primary) return null;
+
+  // Extract credentials and DB name from the SRV URI
+  const match = primary.match(
+    /mongodb\+srv:\/\/([^@]+)@[^/]+\/([^?]+)\??(.*)/
+  );
+  if (!match) return null;
+
+  const [, credentials, dbName, params] = match;
+  const shards = [
+    "ac-rnosrti-shard-00-00.f2gv7j5.mongodb.net:27017",
+    "ac-rnosrti-shard-00-01.f2gv7j5.mongodb.net:27017",
+    "ac-rnosrti-shard-00-02.f2gv7j5.mongodb.net:27017",
+  ].join(",");
+
+  return `mongodb://${credentials}@${shards}/${dbName}?ssl=true&authSource=admin&${params}`;
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      // Mongoose 7+ uses the new connection string parser and
-      // unified topology by default — no need for legacy flags.
-      autoIndex: process.env.NODE_ENV !== "production", // Disable auto-index in production for performance
-    });
+  const mongoOptions = {
+    autoIndex: process.env.NODE_ENV !== "production",
+    serverSelectionTimeoutMS: 10000,   // 10 s instead of default 30 s
+    socketTimeoutMS: 45000,
+    family: 4,                         // Force IPv4
+  };
 
-    console.log(`✅  MongoDB connected: ${conn.connection.host}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      console.log(
+        `🔌  MongoDB connection attempt ${attempt}/${MAX_RETRIES}…`
+      );
 
-    // ---------- Connection event listeners ----------
-    mongoose.connection.on("error", (err) => {
-      console.error(`❌  MongoDB connection error: ${err.message}`);
-    });
+      const conn = await mongoose.connect(
+        process.env.MONGO_URI,
+        mongoOptions
+      );
 
-    mongoose.connection.on("disconnected", () => {
-      console.warn("⚠️  MongoDB disconnected. Attempting reconnect…");
-    });
+      console.log(`✅  MongoDB connected: ${conn.connection.host}`);
 
-    mongoose.connection.on("reconnected", () => {
-      console.log("🔄  MongoDB reconnected successfully.");
-    });
-  } catch (error) {
-    console.error(`❌  MongoDB connection failed: ${error.message}`);
-    process.exit(1);
+      // ---------- Connection event listeners ----------
+      mongoose.connection.on("error", (err) => {
+        console.error(`❌  MongoDB connection error: ${err.message}`);
+      });
+
+      mongoose.connection.on("disconnected", () => {
+        console.warn("⚠️  MongoDB disconnected. Attempting reconnect…");
+      });
+
+      mongoose.connection.on("reconnected", () => {
+        console.log("🔄  MongoDB reconnected successfully.");
+      });
+
+      return; // success — stop retrying
+    } catch (error) {
+      console.error(
+        `❌  Attempt ${attempt} failed: ${error.message}`
+      );
+
+      // On last SRV attempt, try the non-SRV fallback URI
+      if (attempt === MAX_RETRIES) {
+        const fallbackUri = buildFallbackUri();
+        if (fallbackUri) {
+          try {
+            console.log("🔄  Trying non-SRV fallback connection…");
+            const conn = await mongoose.connect(fallbackUri, mongoOptions);
+            console.log(
+              `✅  MongoDB connected (fallback): ${conn.connection.host}`
+            );
+            return; // success via fallback
+          } catch (fbErr) {
+            console.error(
+              `❌  Fallback also failed: ${fbErr.message}`
+            );
+          }
+        }
+
+        console.error("❌  All MongoDB connection attempts exhausted.");
+        process.exit(1);
+      }
+
+      console.log(`⏳  Retrying in ${RETRY_DELAY_MS / 1000}s…`);
+      await sleep(RETRY_DELAY_MS);
+    }
   }
 };
 

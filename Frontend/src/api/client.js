@@ -15,7 +15,7 @@ import axios from "axios";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 /** Public pages that should NEVER be redirected away from */
-const PUBLIC_PATHS = ["/login", "/signup", "/forgot-password", "/", "/about", "/blog", "/contact", "/help", "/onboarding"];
+const PUBLIC_PATHS = ["/login", "/admin-login", "/signup", "/forgot-password", "/", "/about", "/blog", "/contact", "/help", "/onboarding"];
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

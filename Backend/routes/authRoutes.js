@@ -17,6 +17,7 @@ const {
   verifyResetOTP,
   resetPassword,
 } = require("../controllers/authController");
+const { adminLogin } = require("../controllers/adminController");
 const { protect } = require("../middleware/authMiddleware");
 
 /* ── Signup ────────────────────────────────────────────────── */
@@ -26,6 +27,7 @@ router.post("/resend-otp", resendOTP);
 
 /* ── Login ─────────────────────────────────────────────────── */
 router.post("/login", login);
+router.post("/admin-login", adminLogin);
 router.post("/google", googleAuth);
 
 /* ── Forgot Password ──────────────────────────────────────── */
