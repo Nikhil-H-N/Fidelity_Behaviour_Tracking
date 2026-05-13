@@ -1,11 +1,18 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AdminProtectedRoute from './components/common/AdminProtectedRoute';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import AdminDashboardLayout from './components/dashboard/AdminDashboardLayout';
+import { useInteractionTracking, useScrollDepth } from './hooks/useTracking';
+
+function GlobalTracker() {
+  useInteractionTracking();
+  useScrollDepth();
+  return null;
+}
 
 // Lazy load pages
 const Landing = lazy(() => import('./pages/Landing'));
@@ -54,6 +61,7 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
+        <GlobalTracker />
         {/* Global toast notifications */}
         <Toaster
           position="top-right"

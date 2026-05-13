@@ -12,12 +12,14 @@ const Event = require("../models/Event");
 const Session = require("../models/Session");
 const { updateUserIntentScore, evaluateRules } = require("./intentEngine");
 
+const ENGINE_URL = process.env.ENGINE_URL || "http://localhost:8000/analyze";
+
 /**
  * Process and persist a batch of events.
  * Enriches each event with userId, computes intent, evaluates rules.
  * @param {string} userId
  * @param {Array} events
- * @returns {Promise<{ created: number, intentScore: number, triggers: Array }>}
+ * @returns {Promise<{ created: number, intentScore: number, triggers: Array, intelligence: Array }>}
  */
 const processBatchEvents = async (userId, events) => {
   // Enrich events
@@ -40,34 +42,71 @@ const processBatchEvents = async (userId, events) => {
     timestamp: e.timestamp || new Date(),
   }));
 
-  // Bulk insert (ordered: false for performance)
-  const created = await Event.insertMany(enriched, { ordered: false });
+  // Bulk insert to MongoDB only if we have a valid ObjectId for userId
+  const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(id);
+  
+  let createdCount = 0;
+  if (isValidObjectId(userId)) {
+    try {
+      const created = await Event.insertMany(enriched, { ordered: false });
+      createdCount = created.length;
 
-  // Update user intent score asynchronously
-  const intentScore = await updateUserIntentScore(userId);
+      // Update user intent score and evaluate rules (Mongo-based)
+      await updateUserIntentScore(userId);
+      await evaluateRules(userId);
+    } catch (mongoError) {
+      console.warn(`MongoDB persistence failed: ${mongoError.message}`);
+    }
+  }
 
-  // Evaluate behavioral rules
-  const triggers = await evaluateRules(userId);
+  // --- Forward to Python Engine (ALWAYS) ---
+  const intelligence = [];
+  for (const event of enriched) {
+    try {
+      const response = await fetch(ENGINE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId.toString(),
+          event_type: event.eventType,
+          page_id: event.page || "unknown",
+          element_id: event.element || event.buttonName || null,
+          timestamp: new Date(event.timestamp).getTime() / 1000,
+          scroll_depth: event.scrollDepth || 0,
+          metadata: event.metadata || {},
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        intelligence.push(data);
+      }
+    } catch (error) {
+      console.warn(`Engine forwarding failed: ${error.message}`);
+    }
+  }
 
-  // Update session with page visits
+  // Update session with page visits in MongoDB only if valid
   const sessionIds = [...new Set(enriched.map((e) => e.sessionId).filter(Boolean))];
   for (const sid of sessionIds) {
-    const pages = enriched
-      .filter((e) => e.sessionId?.toString() === sid.toString() && e.page)
-      .map((e) => e.page);
+    if (isValidObjectId(sid)) {
+      const pages = enriched
+        .filter((e) => e.sessionId?.toString() === sid.toString() && e.page)
+        .map((e) => e.page);
 
-    if (pages.length > 0) {
-      await Session.findByIdAndUpdate(sid, {
-        $addToSet: { pagesVisited: { $each: pages } },
-        lastActive: new Date(),
-      });
+      if (pages.length > 0) {
+        await Session.findByIdAndUpdate(sid, {
+          $addToSet: { pagesVisited: { $each: pages } },
+          lastActive: new Date(),
+        }).catch(() => {});
+      }
     }
   }
 
   return {
-    created: created.length,
-    intentScore,
-    triggers,
+    created: createdCount,
+    intentScore: 0, // Guest scores handled by engine
+    triggers: [],
+    intelligence,
   };
 };
 

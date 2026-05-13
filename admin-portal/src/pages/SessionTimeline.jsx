@@ -15,6 +15,7 @@ export default function SessionTimeline() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [filterActive, setFilterActive] = useState(false);
   const [isInterventionModalOpen, setIsInterventionModalOpen] = useState(false);
 
   const fetchUsers = async () => {
@@ -23,25 +24,11 @@ export default function SessionTimeline() {
       if (res.ok) {
         const data = await res.json();
         setActiveUsers(data);
-        if (data.length > 0 && !selectedUser) {
-          // Don't auto-select to avoid jumping
-        }
       }
     } catch (error) {
       console.error('Failed to fetch users:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchReport = async (userId) => {
-    try {
-      const res = await fetch(`${API_BASE}/admin/user-report/${userId}`);
-      if (res.ok) {
-        setReport(await res.json());
-      }
-    } catch (error) {
-      console.error('Failed to fetch user report:', error);
     }
   };
 
@@ -59,7 +46,12 @@ export default function SessionTimeline() {
     }
   }, [selectedUser]);
 
-  const filteredUsers = activeUsers.filter(u => u.user_id.toLowerCase().includes(search.toLowerCase()));
+  const now = Date.now() / 1000;
+  const filteredUsers = activeUsers.filter(u => {
+    const matchesSearch = u.user_id.toLowerCase().includes(search.toLowerCase());
+    const isActive = (now - u.last_active) < 60;
+    return matchesSearch && (!filterActive || isActive);
+  });
 
   return (
     <div className="space-y-8">
@@ -71,37 +63,55 @@ export default function SessionTimeline() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* User Sidebar */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
-            <input 
-              type="text" 
-              placeholder="Filter sessions..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-surface-900 border border-surface-800 rounded-xl text-sm focus:border-primary-500 outline-none transition-colors text-white"
-            />
+          <div className="flex flex-col gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
+              <input 
+                type="text" 
+                placeholder="Filter sessions..." 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-surface-900 border border-surface-800 rounded-xl text-sm focus:border-primary-500 outline-none transition-colors text-white"
+              />
+            </div>
+            <button 
+              onClick={() => setFilterActive(!filterActive)}
+              className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${filterActive ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-surface-900 border-surface-800 text-surface-500'}`}
+            >
+              {filterActive ? 'Showing Active Only' : 'Show Active Only'}
+            </button>
           </div>
           
           <div className="bg-surface-900 border border-surface-800 rounded-2xl overflow-hidden">
-            <div className="p-4 border-b border-surface-800 bg-surface-900/50">
-              <h3 className="text-[10px] font-bold text-surface-500 uppercase tracking-widest">Active Sessions</h3>
+            <div className="p-4 border-b border-surface-800 bg-surface-900/50 flex justify-between items-center">
+              <h3 className="text-[10px] font-bold text-surface-500 uppercase tracking-widest">Sessions</h3>
+              <span className="text-[9px] font-bold text-primary-400 bg-primary-500/10 px-1.5 py-0.5 rounded">Sorted by Recency</span>
             </div>
             <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
-              {filteredUsers.map(user => (
-                <button 
-                  key={user.user_id}
-                  onClick={() => setSelectedUser(user.user_id)}
-                  className={`w-full p-4 text-left border-b border-surface-800/50 transition-all hover:bg-surface-800/50 flex items-center gap-3 ${selectedUser === user.user_id ? 'bg-primary-600/10 border-l-4 border-l-primary-500' : ''}`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${selectedUser === user.user_id ? 'bg-primary-500 text-white' : 'bg-surface-800 text-surface-400'}`}>
-                    {user.user_id.charAt(5).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-surface-200 truncate">{user.user_id}</p>
-                    <p className="text-[10px] text-surface-500 font-medium uppercase tracking-tighter">{user.intent_state} · {Math.round(user.total_score)}pt</p>
-                  </div>
-                </button>
-              ))}
+              {filteredUsers.map(user => {
+                const isActive = (now - user.last_active) < 60;
+                return (
+                  <button 
+                    key={user.user_id}
+                    onClick={() => setSelectedUser(user.user_id)}
+                    className={`w-full p-4 text-left border-b border-surface-800/50 transition-all hover:bg-surface-800/50 flex items-center gap-3 ${selectedUser === user.user_id ? 'bg-primary-600/10 border-l-4 border-l-primary-500' : ''}`}
+                  >
+                    <div className="relative">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${selectedUser === user.user_id ? 'bg-primary-500 text-white' : 'bg-surface-800 text-surface-400'}`}>
+                        {user.user_id.charAt(5).toUpperCase()}
+                      </div>
+                      {isActive && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-surface-900 animate-pulse" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-bold text-surface-200 truncate">{user.user_id}</p>
+                        {isActive && <span className="text-[8px] font-black text-emerald-400 uppercase">ACTIVE</span>}
+                      </div>
+                      <p className="text-[10px] text-surface-500 font-medium uppercase tracking-tighter">{user.intent_state} · {Math.round(user.total_score)}pt</p>
+                    </div>
+                  </button>
+                );
+              })}
               {filteredUsers.length === 0 && (
                 <p className="p-8 text-center text-xs text-surface-600 italic">No matching sessions</p>
               )}
@@ -237,17 +247,45 @@ export default function SessionTimeline() {
               </div>
 
               {/* Content Interest */}
-              <div className="bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
-                <h3 className="font-bold text-white mb-6 flex items-center gap-2 text-lg">
-                  <BarChart3 className="w-5 h-5 text-indigo-400" /> Page Engagement Depth
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {report.top_pages.map(([page, count]) => (
-                    <div key={page} className="p-4 rounded-xl bg-surface-950 border border-surface-800 text-center">
-                      <p className="text-2xl font-bold text-white mb-1">{count}</p>
-                      <p className="text-[10px] text-surface-500 font-bold truncate uppercase tracking-tighter">{page.split('/').pop() || 'landing'}</p>
-                    </div>
-                  ))}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
+                  <h3 className="font-bold text-white mb-6 flex items-center gap-2 text-lg">
+                    <BarChart3 className="w-5 h-5 text-indigo-400" /> Page Engagement Depth
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {report.top_pages.map(([page, count]) => (
+                      <div key={page} className="p-4 rounded-xl bg-surface-950 border border-surface-800 text-center">
+                        <p className="text-2xl font-bold text-white mb-1">{count}</p>
+                        <p className="text-[10px] text-surface-500 font-bold truncate uppercase tracking-tighter">{page.split('/').pop() || 'landing'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
+                  <h3 className="font-bold text-white mb-6 flex items-center gap-2 text-lg">
+                    <Activity className="w-5 h-5 text-primary-400" /> Live Behavioral Events
+                  </h3>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                    {report.events.slice().reverse().map((e, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-surface-950/50 border border-surface-800">
+                        <div className={`w-2 h-2 rounded-full mt-1.5 ${
+                          e.event_type.includes('click') ? 'bg-emerald-500' :
+                          e.event_type.includes('form') ? 'bg-amber-500' :
+                          e.event_type.includes('hover') ? 'bg-indigo-500' : 'bg-primary-500'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] font-bold text-surface-200 uppercase tracking-widest">{e.event_type.replace(/_/g, ' ')}</span>
+                            <span className="text-[8px] font-mono text-surface-600">{new Date(e.timestamp * 1000).toLocaleTimeString()}</span>
+                          </div>
+                          <p className="text-[10px] text-surface-500 truncate mt-0.5">
+                            {e.page_id} {e.element_id ? `· ${e.element_id}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

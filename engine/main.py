@@ -44,7 +44,9 @@ async def analyze_interaction(event: Event):
     Teammates: Ping this endpoint for every user interaction.
     """
     try:
-        event_dict = event.dict()
+        # Pydantic V2: model_dump()
+        event_dict = event.model_dump()
+        print(f"📥 Received event: {event_dict['event_type']} from user: {event_dict['user_id']}")
         
         # 0. Normalization (Section 42)
         event_dict = EventNormalizer.normalize(event_dict)
@@ -69,7 +71,10 @@ async def analyze_interaction(event: Event):
         # Flatten for standard response
         return intelligence
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        print(f"ERROR: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Engine Internal Error: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

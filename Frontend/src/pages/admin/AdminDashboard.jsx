@@ -6,18 +6,32 @@
  */
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Activity, Radio, Clock, TrendingUp, UserPlus,
   ArrowUpRight, ArrowDownRight, BarChart3, Loader2,
+  MousePointer2, Eye, Scroll, Layout
 } from 'lucide-react';
-import { getAdminAnalytics } from '../../api/adminService';
+import { getAdminAnalytics, getActiveEngineUsers } from '../../api/adminService';
 
 const fadeIn = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 } };
+
+// Interaction Icon Helper
+const InteractionIcon = ({ type }) => {
+  switch (type) {
+    case 'click': return <MousePointer2 className="w-3 h-3 text-blue-500" />;
+    case 'view': return <Eye className="w-3 h-3 text-emerald-500" />;
+    case 'scroll': return <Scroll className="w-3 h-3 text-purple-500" />;
+    case 'form_start':
+    case 'form_complete': return <Layout className="w-3 h-3 text-amber-500" />;
+    default: return <Activity className="w-3 h-3 text-surface-400" />;
+  }
+};
 
 export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [liveEvents, setLiveEvents] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,6 +45,28 @@ export default function AdminDashboard() {
       }
     };
     fetchData();
+
+    // Poll for live events from engine
+    const liveInterval = setInterval(async () => {
+      try {
+        const engineRes = await getActiveEngineUsers().catch(() => []);
+        // Flatten all events from all active sessions
+        const allEvents = engineRes.flatMap(session => 
+          (session.events || []).map(ev => ({
+            ...ev,
+            user_id: session.user_id,
+            persona: session.persona
+          }))
+        );
+        // Sort by timestamp desc and take top 20
+        const latestEvents = allEvents.sort((a, b) => b.timestamp - a.timestamp).slice(0, 20);
+        setLiveEvents(latestEvents);
+      } catch (err) {
+        console.error('Failed to fetch live events:', err);
+      }
+    }, 3000);
+
+    return () => clearInterval(liveInterval);
   }, []);
 
   if (loading) {
@@ -211,6 +247,58 @@ export default function AdminDashboard() {
           </div>
         </motion.div>
       )}
+
+      {/* Global Live Event Stream */}
+      <motion.div {...fadeIn} transition={{ delay: 0.6 }} className="kpi-card overflow-hidden">
+        <h3 className="text-lg font-semibold text-surface-900 mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-accent-600 animate-pulse" />
+            Global Live Event Stream
+          </div>
+          <span className="text-[10px] font-bold px-2 py-1 bg-accent-50 text-accent-700 rounded-full uppercase tracking-wider">
+            Real-time Feed
+          </span>
+        </h3>
+        <div className="bg-surface-50 rounded-xl border border-surface-100 overflow-hidden h-64 overflow-y-auto">
+          {liveEvents.length > 0 ? (
+            <div className="divide-y divide-surface-100">
+              <AnimatePresence initial={false}>
+                {liveEvents.map((ev, i) => (
+                  <motion.div
+                    key={`${ev.user_id}-${ev.timestamp}-${i}`}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="px-4 py-3 flex items-center justify-between hover:bg-white transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <InteractionIcon type={ev.event_type} />
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-surface-900 capitalize">{ev.event_type.replace('_', ' ')}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-surface-900 text-white rounded font-bold uppercase tracking-tighter">
+                            {ev.persona?.replace('_', ' ') || 'GUEST'}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-surface-500 truncate max-w-[200px]">
+                          User <span className="font-mono">{ev.user_id.slice(-6)}</span> on <span className="font-medium">{ev.page_id}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-surface-400 font-medium">
+                      {Math.floor(Date.now() / 1000 - ev.timestamp)}s ago
+                    </span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+              <Loader2 className="w-8 h-8 text-primary-500 animate-spin mb-3" />
+              <p className="text-sm text-surface-400 italic">Waiting for platform-wide interactions...</p>
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }

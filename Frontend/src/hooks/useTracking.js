@@ -78,7 +78,7 @@ export const useScrollDepth = () => {
         (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100
       );
 
-      if (scrollPercent > maxDepth.current && scrollPercent % 25 === 0) {
+      if (scrollPercent > maxDepth.current && (scrollPercent % 10 === 0 || scrollPercent === 100)) {
         maxDepth.current = scrollPercent;
         addEvent({
           type: 'scroll_depth',
@@ -99,6 +99,94 @@ export const useScrollDepth = () => {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [addEvent]);
+};
+
+// Advanced Interaction Tracking (Hover, Focus, Idle, Mouse)
+export const useInteractionTracking = () => {
+  const addEvent = useStore((s) => s.addEvent);
+  const lastActivity = useRef(Date.now());
+  const mouseMoves = useRef(0);
+  const idleTimer = useRef(null);
+
+  const reportIdle = useCallback(() => {
+    const idleTime = Math.round((Date.now() - lastActivity.current) / 1000);
+    if (idleTime > 15) { // 15s idle
+      queueEvent({
+        eventType: 'idle_timeout',
+        sessionId: getSessionId(),
+        metadata: { idle_time: idleTime },
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    // Local debounce to avoid any scope issues
+    let mouseTimeout;
+    const handleMouseMove = () => {
+      lastActivity.current = Date.now();
+      mouseMoves.current += 1;
+      
+      if (!mouseTimeout) {
+        mouseTimeout = setTimeout(() => {
+          if (mouseMoves.current % 100 === 0) {
+            queueEvent({
+              eventType: 'mouse_activity',
+              sessionId: getSessionId(),
+              metadata: { move_count: mouseMoves.current },
+            });
+          }
+          mouseTimeout = null;
+        }, 2000);
+      }
+    };
+
+    const handleHover = (e) => {
+      const target = e.target.closest('button, a, input, select');
+      if (target) {
+        queueEvent({
+          eventType: 'hover',
+          sessionId: getSessionId(),
+          metadata: { element: target.innerText || target.name || target.id, tag: target.tagName },
+        });
+      }
+    };
+
+    const handleFocus = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        queueEvent({
+          eventType: 'field_focus',
+          sessionId: getSessionId(),
+          metadata: { element: e.target.name || e.target.id, tag: e.target.tagName },
+        });
+      }
+    };
+
+    const handleBlur = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        queueEvent({
+          eventType: 'field_blur',
+          sessionId: getSessionId(),
+          metadata: { element: e.target.name || e.target.id },
+        });
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('mouseover', handleHover, { passive: true });
+    window.addEventListener('focusin', handleFocus, { passive: true });
+    window.addEventListener('focusout', handleBlur, { passive: true });
+
+    idleTimer.current = setInterval(reportIdle, 30000); // Check idle every 30s
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseover', handleHover);
+      window.removeEventListener('focusin', handleFocus);
+      window.removeEventListener('focusout', handleBlur);
+      if (mouseTimeout) clearTimeout(mouseTimeout);
+      clearInterval(idleTimer.current);
+    };
+  }, [reportIdle]);
 };
 
 // Track session duration

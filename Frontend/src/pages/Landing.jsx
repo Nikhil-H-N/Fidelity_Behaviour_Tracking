@@ -10,11 +10,10 @@ import {
   BehavioralShowcase,
   CTASection,
 } from '../components/landing/LandingSections';
-import { useScrollDepth, usePageTracking } from '../hooks/useTracking';
+import { usePageTracking } from '../hooks/useTracking';
 
 export default function Landing() {
   usePageTracking('landing');
-  useScrollDepth();
 
   return (
     <div className="min-h-screen">

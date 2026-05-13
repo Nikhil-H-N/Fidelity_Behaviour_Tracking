@@ -20,15 +20,8 @@ const { processTriggeredRules } = require("../services/triggerEngine");
  */
 const trackEvent = async (req, res) => {
   try {
-    const { event, events } = req.body;
-    const userId = req.user?._id;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "User must be authenticated to track events",
-      });
-    }
+    const { event, events, guestId, sessionId } = req.body;
+    const userId = req.user?._id || guestId || sessionId || "anonymous_guest";
 
     // Normalize to array
     const payload = events || (event ? [event] : []);
@@ -55,6 +48,7 @@ const trackEvent = async (req, res) => {
         count: result.created,
         intentScore: result.intentScore,
         triggersCount: result.triggers?.length || 0,
+        intelligence: result.intelligence,
       },
     });
   } catch (error) {

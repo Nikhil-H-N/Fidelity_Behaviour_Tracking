@@ -13,6 +13,8 @@ const Event = require("../models/Event");
 const Session = require("../models/Session");
 const generateToken = require("../utils/generateToken");
 
+const ENGINE_ANALYTICS_URL = process.env.ENGINE_ANALYTICS_URL || "http://localhost:8000/admin/analytics/summary";
+
 /* ═══════════════════════════════════════════════════════════
  * ADMIN LOGIN
  * ═══════════════════════════════════════════════════════════ */
@@ -249,6 +251,17 @@ const getAnalytics = async (req, res) => {
       ]),
     ]);
 
+    // Fetch engine-level behavioral summary
+    let engineSummary = null;
+    try {
+      const engineRes = await fetch(ENGINE_ANALYTICS_URL);
+      if (engineRes.ok) {
+        engineSummary = await engineRes.json();
+      }
+    } catch (e) {
+      console.warn("Engine analytics fetch failed:", e.message);
+    }
+
     return res.status(200).json({
       success: true,
       data: {
@@ -260,10 +273,12 @@ const getAnalytics = async (req, res) => {
           eventsToday,
           totalSessions,
           activeSessions,
+          engineStatus: engineSummary ? "active" : "offline",
         },
         eventsByType,
         usersByProvider,
         dailySignups,
+        behavioralSummary: engineSummary,
       },
     });
   } catch (error) {

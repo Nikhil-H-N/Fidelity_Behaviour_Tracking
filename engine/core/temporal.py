@@ -47,10 +47,10 @@ class TemporalEngine:
                     hesitation_pause = True
 
         # Scroll Velocity (Section 30)
-        scroll_velocity = self.analyze_scroll_velocity(events)
+        scroll_velocity = TemporalEngine.analyze_scroll_velocity(events)
 
         # Hover Analysis (Section 30)
-        hover_tendency = self.analyze_hovers(events)
+        hover_tendency = TemporalEngine.analyze_hovers(events)
 
         return {
             "avg_click_interval": avg_click_interval,

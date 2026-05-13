@@ -26,3 +26,15 @@ export const getAdminSessions = (params) =>
 /** Get analytics overview */
 export const getAdminAnalytics = () =>
   apiClient.get("/admin/analytics").then((r) => r.data);
+
+/** Get real-time active sessions from Python Engine (via Proxy or Direct) */
+export const getActiveEngineUsers = () =>
+  fetch("http://localhost:8000/admin/active-users").then((r) => r.json());
+
+/** Send a manual intervention/nudge to a specific user */
+export const triggerManualIntervention = (data) =>
+  fetch("http://localhost:8000/admin/manual-intervention", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((r) => r.json());

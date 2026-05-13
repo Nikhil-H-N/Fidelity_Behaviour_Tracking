@@ -25,7 +25,9 @@ def create_admin_router(session_manager: SessionManager):
     @router.get("/active-users")
     async def get_active_users():
         results = []
-        for uid, session in session_manager.sessions.items():
+        # Sort sessions by last_active descending
+        sorted_sessions = sorted(session_manager.sessions.items(), key=lambda x: x[1].last_active, reverse=True)
+        for uid, session in sorted_sessions:
             data = session.to_dict()
             data['persona'] = seg_model.get_persona(session.events)
             data['metadata'] = session.metadata
@@ -47,7 +49,7 @@ def create_admin_router(session_manager: SessionManager):
     @router.post("/config/update")
     async def update_config(update: ConfigUpdate):
         """Dynamically update engine parameters without restart."""
-        session_manager.config.update(update.dict(exclude_none=True))
+        session_manager.config.update(update.model_dump(exclude_none=True))
         return {"status": "success", "new_config": await get_config()}
 
     @router.post("/manual-intervention")
@@ -159,7 +161,8 @@ def create_admin_router(session_manager: SessionManager):
             "ml_intelligence": ml_data,
             "narrative": session.metadata.get('last_narrative', "No narrative generated yet."),
             "recommendations": session.metadata.get('last_recommendations', []),
-            "raw_timeline_event_count": len(events)
+            "raw_timeline_event_count": len(events),
+            "events": events[-100:] # Return last 100 events for detailed timeline
         }
 
     return router

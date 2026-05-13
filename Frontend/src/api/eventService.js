@@ -9,12 +9,22 @@
  */
 
 import apiClient from "./client";
+import toast from "react-hot-toast";
 
 /** In-memory queue — flushed every FLUSH_INTERVAL ms */
 let eventQueue = [];
 let flushTimer = null;
 const FLUSH_INTERVAL = 3000; // 3 seconds
 const MAX_BATCH_SIZE = 20;
+
+const getGuestId = () => {
+  let gid = localStorage.getItem('fw_guestId');
+  if (!gid) {
+    gid = 'guest_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('fw_guestId', gid);
+  }
+  return gid;
+};
 
 /**
  * Queue a single event for batch dispatch.
@@ -53,7 +63,36 @@ export const flushEvents = async () => {
   eventQueue = [];
 
   try {
-    await apiClient.post("/events", { events: batch });
+    const sessionId = sessionStorage.getItem('fw_sessionId');
+    const guestId = getGuestId();
+    const res = await apiClient.post("/events", { 
+      events: batch,
+      sessionId,
+      guestId
+    });
+
+    // Handle real-time interventions from Python Engine
+    const intelligence = res.data?.data?.intelligence || [];
+    intelligence.forEach(intel => {
+      if (intel.interventions && intel.interventions.length > 0) {
+        intel.interventions.forEach(iv => {
+          // Display the intervention as a cinematic nudge
+          toast(iv.payload.message, {
+            icon: iv.type === 'nudge' ? '🔔' : '🚀',
+            duration: 6000,
+            style: {
+              border: '2px solid #6366f1',
+              padding: '20px',
+              color: '#1e293b',
+              fontWeight: 'bold',
+              borderRadius: '16px',
+              boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+            },
+          });
+        });
+      }
+    });
+
   } catch (error) {
     // On failure, push events back to queue for retry
     console.warn("Event flush failed — re-queuing", error.message);

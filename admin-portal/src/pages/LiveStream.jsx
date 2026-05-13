@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
-  Radio, Eye, MousePointerClick, FormInput, Zap
+  Radio, Eye, MousePointerClick, FormInput, Zap,
+  MousePointer2, Focus, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -49,6 +50,7 @@ export default function LiveStream() {
             <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-primary-500" /> PAGE VIEW</span>
             <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-500" /> CLICK</span>
             <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-amber-500" /> FORM</span>
+            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-indigo-500" /> HOVER</span>
           </div>
         </div>
 
@@ -66,11 +68,17 @@ export default function LiveStream() {
                     e.event_type.includes('page') ? 'bg-primary-500/10 text-primary-400' :
                     e.event_type.includes('click') ? 'bg-emerald-500/10 text-emerald-400' :
                     e.event_type.includes('form') ? 'bg-amber-500/10 text-amber-400' :
+                    e.event_type.includes('hover') ? 'bg-indigo-500/10 text-indigo-400' :
+                    e.event_type.includes('focus') ? 'bg-purple-500/10 text-purple-400' :
+                    e.event_type.includes('idle') ? 'bg-red-500/10 text-red-400' :
                     'bg-surface-800 text-surface-500'
                   }`}>
                     {e.event_type.includes('page') ? <Eye className="w-5 h-5" /> : 
                      e.event_type.includes('click') ? <MousePointerClick className="w-5 h-5" /> :
                      e.event_type.includes('form') ? <FormInput className="w-5 h-5" /> :
+                     e.event_type.includes('hover') ? <MousePointer2 className="w-5 h-5" /> :
+                     e.event_type.includes('focus') ? <Focus className="w-5 h-5" /> :
+                     e.event_type.includes('idle') ? <Clock className="w-5 h-5" /> :
                      <Zap className="w-5 h-5" />}
                   </div>
                   <div>

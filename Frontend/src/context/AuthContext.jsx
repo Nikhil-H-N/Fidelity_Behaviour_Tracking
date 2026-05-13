@@ -57,10 +57,14 @@ export function AuthProvider({ children }) {
 
   /**
    * On mount — if a token exists, verify it via GET /auth/me.
-   * If the token is invalid/expired, silently clear it.
-   * NEVER redirect here — public pages must stay accessible.
+   * Also ensure a sessionId exists for tracking.
    */
   useEffect(() => {
+    // Session ID initialization
+    if (!sessionStorage.getItem('fw_sessionId')) {
+      sessionStorage.setItem('fw_sessionId', 'sess_' + Math.random().toString(36).substr(2, 9));
+    }
+
     const restoreSession = async () => {
       const savedToken = localStorage.getItem("fw_token");
 

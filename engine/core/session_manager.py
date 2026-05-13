@@ -56,6 +56,7 @@ class SessionState:
             "total_score": self.total_score,
             "intent_state": self.intent_state,
             "event_count": len(self.events),
+            "events": self.events,
             "last_active": self.last_active,
             "manual_interventions_pending": len(self.manual_interventions)
         }
@@ -78,7 +79,7 @@ class SessionManager:
 
     def add_event(self, event: Event):
         session = self.get_or_create_session(event.user_id)
-        session.events.append(event.dict())
+        session.events.append(event.model_dump())
         session.last_active = time.time()
         return session
 
