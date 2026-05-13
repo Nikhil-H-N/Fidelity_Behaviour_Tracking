@@ -10,6 +10,7 @@
 
 import apiClient from "./client";
 import toast from "react-hot-toast";
+import { getBrowserInfo, getDeviceType } from "../utils/tracker";
 
 /** In-memory queue — flushed every FLUSH_INTERVAL ms */
 let eventQueue = [];
@@ -26,15 +27,62 @@ const getGuestId = () => {
   return gid;
 };
 
+const getStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('fw_user') || 'null');
+  } catch {
+    return null;
+  }
+};
+
+export const getTrackingUserId = () => {
+  const user = getStoredUser();
+  return user?.id || user?._id || getGuestId();
+};
+
+const getSessionId = () => {
+  let sessionId = sessionStorage.getItem('fw_sessionId');
+  if (!sessionId) {
+    sessionId = 'sess_' + Math.random().toString(36).slice(2, 11);
+    sessionStorage.setItem('fw_sessionId', sessionId);
+  }
+  return sessionId;
+};
+
+const getSessionDuration = () => {
+  const startedAt = Number(sessionStorage.getItem('fw_sessionStartedAt') || Date.now());
+  return Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+};
+
+const buildEvent = (event) => {
+  const sessionId = getSessionId();
+  const metadata = event.metadata || {};
+  const user = getStoredUser();
+
+  return {
+    page: event.page || window.location.pathname,
+    sessionId,
+    device: event.device || getDeviceType(),
+    browser: event.browser || getBrowserInfo(),
+    ...event,
+    metadata: {
+      ...metadata,
+      page: event.page || metadata.page || window.location.pathname,
+      clientSessionId: sessionId,
+      trackingUserId: getTrackingUserId(),
+      userEmail: user?.email || metadata.userEmail || null,
+      userName: user?.fullName || metadata.userName || null,
+    },
+    timestamp: event.timestamp || new Date().toISOString(),
+  };
+};
+
 /**
  * Queue a single event for batch dispatch.
  * @param {Object} event
  */
 export const queueEvent = (event) => {
-  eventQueue.push({
-    ...event,
-    timestamp: event.timestamp || new Date().toISOString(),
-  });
+  eventQueue.push(buildEvent(event));
 
   // Flush immediately if batch is full
   if (eventQueue.length >= MAX_BATCH_SIZE) {
@@ -100,6 +148,37 @@ export const flushEvents = async () => {
   }
 };
 
+const appendExitEvents = () => {
+  const duration = getSessionDuration();
+  const pageCount = Number(sessionStorage.getItem('fw_pageCount') || 0);
+  const interactionCount = Number(sessionStorage.getItem('fw_interactionCount') || 0);
+  const bounceSent = sessionStorage.getItem('fw_bounceSent') === 'true';
+
+  eventQueue.push(buildEvent({
+    eventType: 'session_end',
+    duration,
+    metadata: {
+      duration,
+      pageCount,
+      interactionCount,
+      reason: 'page_unload',
+    },
+  }));
+
+  if (!bounceSent && pageCount <= 1 && interactionCount <= 1 && duration <= 30) {
+    sessionStorage.setItem('fw_bounceSent', 'true');
+    eventQueue.push(buildEvent({
+      eventType: 'bounce',
+      duration,
+      metadata: {
+        duration,
+        pageCount,
+        interactionCount,
+      },
+    }));
+  }
+};
+
 /**
  * Create a new tracking session.
  * @param {{ device?: string, browser?: string, location?: string }} meta
@@ -118,12 +197,16 @@ export const createTrackingSession = async (meta = {}) => {
 // Flush on page unload
 if (typeof window !== "undefined") {
   window.addEventListener("beforeunload", () => {
+    appendExitEvents();
+
     if (eventQueue.length > 0) {
       // Use sendBeacon for reliability during unload
       const token = localStorage.getItem("fw_token");
       const url = (import.meta.env.VITE_API_URL || "http://localhost:5000/api") + "/events";
+      const sessionId = getSessionId();
+      const guestId = getGuestId();
       const blob = new Blob(
-        [JSON.stringify({ events: eventQueue })],
+        [JSON.stringify({ events: eventQueue, sessionId, guestId })],
         { type: "application/json" }
       );
       // sendBeacon doesn't support custom headers, so fall back to fetch with keepalive

@@ -73,6 +73,12 @@ const sessionSchema = new mongoose.Schema(
       default: false,
     },
 
+    /** True when this browser/user has visited before */
+    returningUser: {
+      type: Boolean,
+      default: false,
+    },
+
     /** True if a key conversion event occurred in the session */
     conversion: {
       type: Boolean,
@@ -89,6 +95,27 @@ const sessionSchema = new mongoose.Schema(
     lastActive: {
       type: Date,
       default: Date.now,
+    },
+
+    eventCount: {
+      type: Number,
+      default: 0,
+    },
+
+    rapidClickCount: {
+      type: Number,
+      default: 0,
+    },
+
+    inactiveDetected: {
+      type: Boolean,
+      default: false,
+    },
+
+    lastPage: {
+      type: String,
+      trim: true,
+      default: null,
     },
 
     /** Traffic source: direct, organic, email_campaign, referral */

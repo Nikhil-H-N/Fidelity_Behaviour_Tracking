@@ -7,6 +7,7 @@ import LiveStream from './pages/LiveStream';
 import EventTracking from './pages/EventTracking';
 import SessionTimeline from './pages/SessionTimeline';
 import MLIntelligence from './pages/MLIntelligence';
+import NotificationEngine from './pages/NotificationEngine';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="/live" element={<LiveStream />} />
           <Route path="/events" element={<EventTracking />} />
           <Route path="/timeline" element={<SessionTimeline />} />
+          <Route path="/notifications" element={<NotificationEngine />} />
           <Route path="/ml" element={<MLIntelligence />} />
         </Route>
       </Routes>

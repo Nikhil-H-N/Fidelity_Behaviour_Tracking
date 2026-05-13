@@ -80,6 +80,29 @@ const protect = async (req, res, next) => {
  * Must be used AFTER the `protect` middleware.
  * @param  {...string} roles — Allowed roles, e.g. "admin", "advisor"
  */
+const optionalProtect = async (req, _res, next) => {
+  try {
+    let token;
+
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token) return next();
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (user) req.user = user;
+  } catch {
+    // Tracking should keep working when an optional token is absent or stale.
+  }
+
+  next();
+};
+
 const authorize = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
@@ -92,4 +115,4 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { protect, authorize };
+module.exports = { protect, optionalProtect, authorize };

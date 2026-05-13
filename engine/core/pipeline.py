@@ -34,19 +34,33 @@ class EventNormalizer:
     """Section 42: Consistent intelligence across different frontends."""
     TAXONOMY_MAP = {
         "button_click": "cta_click",
+        "click": "cta_click",
         "cta_pressed": "cta_click",
+        "page_view": "page_visit",
         "view": "page_visit",
         "visit": "page_visit",
+        "scroll_depth": "scroll",
         "opened_faq": "faq_open",
         "faq_click": "faq_open",
         "price_check": "pricing_view",
         "form_initiated": "form_start",
-        "progress": "form_progress"
+        "progress": "form_progress",
+        "form_submit": "form_completion",
+        "form_complete": "form_completion",
+        "form_abandon": "form_abandonment",
+        "return_visit": "return_session",
+        "rapid_click": "rage_click",
+        "inactive_session": "idle_timeout",
+        "mouse_activity": "mouse_movement"
     }
 
     @staticmethod
     def normalize(event: Dict) -> Dict:
         etype = event.get('event_type', '').lower()
+        event['raw_event_type'] = event.get('raw_event_type') or etype
+        if not isinstance(event.get('metadata'), dict):
+            event['metadata'] = {}
+        event['metadata']['raw_event_type'] = event['raw_event_type']
         if etype in EventNormalizer.TAXONOMY_MAP:
             event['event_type'] = EventNormalizer.TAXONOMY_MAP[etype]
         return event
@@ -56,11 +70,15 @@ class EventPrioritySystem:
     PRIORITY_LEVELS = {
         "page_visit": "LOW",
         "scroll": "LOW",
+        "mouse_movement": "LOW",
         "faq_open": "MEDIUM",
         "calculator_usage": "HIGH",
         "cta_click": "HIGH",
+        "rage_click": "HIGH",
+        "idle_timeout": "HIGH",
         "otp_request": "CRITICAL",
-        "form_completion": "CRITICAL"
+        "form_completion": "CRITICAL",
+        "form_abandonment": "CRITICAL"
     }
 
     @staticmethod

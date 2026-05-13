@@ -7,7 +7,15 @@ class TemporalEngine:
     @staticmethod
     def analyze_timing(events: List[Dict]) -> Dict:
         if len(events) < 2:
-            return {"click_velocity": "STABLE", "reading_depth": "LOW"}
+            return {
+                "avg_click_interval": 0,
+                "click_velocity": "STABLE",
+                "reading_depth": "LOW",
+                "total_dwell_time": sum([(e.get('dwell_time') or 0) for e in events]),
+                "hesitation_pause_detected": False,
+                "scroll_velocity": "STABLE",
+                "hover_tendency": "NONE"
+            }
             
         # Click Timing Analysis
         # Fast clicks (confusion/frustration) vs Slow deliberate clicks (serious interest)

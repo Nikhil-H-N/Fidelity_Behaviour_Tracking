@@ -1,16 +1,89 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense, useEffect } from 'react';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import AdminProtectedRoute from './components/common/AdminProtectedRoute';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import AdminDashboardLayout from './components/dashboard/AdminDashboardLayout';
 import { useInteractionTracking, useScrollDepth } from './hooks/useTracking';
+import { getTrackingUserId, queueEvent } from './api/eventService';
 
 function GlobalTracker() {
   useInteractionTracking();
   useScrollDepth();
+  return null;
+}
+
+function TargetedNotificationPoller() {
+  useEffect(() => {
+    let cancelled = false;
+
+    const showNotification = (notification) => {
+      const title = notification.title || 'FinovaWealth';
+      const message = notification.payload?.message || notification.message || '';
+
+      toast.custom(
+        (t) => (
+          <div
+            className={`max-w-md w-[calc(100vw-32px)] rounded-2xl border border-primary-200 bg-white shadow-elevated p-4 transition-all ${t.visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center font-black">
+                FW
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-surface-900">{title}</p>
+                <p className="text-sm text-surface-600 mt-1 leading-relaxed">{message}</p>
+              </div>
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="text-surface-400 hover:text-surface-700 text-lg leading-none"
+                aria-label="Dismiss notification"
+              >
+                x
+              </button>
+            </div>
+          </div>
+        ),
+        { duration: 9000 }
+      );
+
+      queueEvent({
+        eventType: 'notification_open',
+        metadata: {
+          source: 'admin_notification_engine',
+          notificationId: notification.id,
+          title,
+          message,
+        },
+      });
+    };
+
+    const poll = async () => {
+      const userId = getTrackingUserId();
+      if (!userId) return;
+
+      try {
+        const response = await fetch(`http://localhost:8000/admin/interventions/${encodeURIComponent(userId)}`);
+        if (!response.ok || cancelled) return;
+
+        const data = await response.json();
+        (data.interventions || []).forEach(showNotification);
+      } catch {
+        // The intelligence engine may be offline while the website is still usable.
+      }
+    };
+
+    poll();
+    const interval = setInterval(poll, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
   return null;
 }
 
@@ -62,6 +135,7 @@ export default function App() {
     <Router>
       <AuthProvider>
         <GlobalTracker />
+        <TargetedNotificationPoller />
         {/* Global toast notifications */}
         <Toaster
           position="top-right"

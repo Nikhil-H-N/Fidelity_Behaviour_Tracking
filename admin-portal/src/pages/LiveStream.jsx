@@ -7,6 +7,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const API_BASE = 'http://localhost:8000';
 
+const displayEventType = (event) => (
+  event.raw_event_type ||
+  event.metadata?.raw_event_type ||
+  event.metadata?.rawEventType ||
+  event.event_type ||
+  'unknown'
+);
+
 export default function LiveStream() {
   const [activeUsers, setActiveUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,34 +64,37 @@ export default function LiveStream() {
 
         <div className="min-h-[600px] p-6 space-y-3">
           <AnimatePresence initial={false}>
-            {allEvents.map((e, idx) => (
-              <motion.div 
+            {allEvents.map((e, idx) => {
+              const eventType = displayEventType(e);
+
+              return (
+              <motion.div
                 key={`${e.timestamp}-${e.user_id}-${idx}`}
-                initial={{ opacity: 0, x: -20 }} 
+                initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 className="flex items-center justify-between p-4 rounded-xl bg-surface-950/50 border border-surface-800 hover:border-primary-500/30 transition-all group"
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                    e.event_type.includes('page') ? 'bg-primary-500/10 text-primary-400' :
-                    e.event_type.includes('click') ? 'bg-emerald-500/10 text-emerald-400' :
-                    e.event_type.includes('form') ? 'bg-amber-500/10 text-amber-400' :
-                    e.event_type.includes('hover') ? 'bg-indigo-500/10 text-indigo-400' :
-                    e.event_type.includes('focus') ? 'bg-purple-500/10 text-purple-400' :
-                    e.event_type.includes('idle') ? 'bg-red-500/10 text-red-400' :
+                    eventType.includes('page') ? 'bg-primary-500/10 text-primary-400' :
+                    eventType.includes('click') ? 'bg-emerald-500/10 text-emerald-400' :
+                    eventType.includes('form') ? 'bg-amber-500/10 text-amber-400' :
+                    eventType.includes('hover') ? 'bg-indigo-500/10 text-indigo-400' :
+                    eventType.includes('focus') ? 'bg-purple-500/10 text-purple-400' :
+                    eventType.includes('idle') || eventType.includes('inactive') ? 'bg-red-500/10 text-red-400' :
                     'bg-surface-800 text-surface-500'
                   }`}>
-                    {e.event_type.includes('page') ? <Eye className="w-5 h-5" /> : 
-                     e.event_type.includes('click') ? <MousePointerClick className="w-5 h-5" /> :
-                     e.event_type.includes('form') ? <FormInput className="w-5 h-5" /> :
-                     e.event_type.includes('hover') ? <MousePointer2 className="w-5 h-5" /> :
-                     e.event_type.includes('focus') ? <Focus className="w-5 h-5" /> :
-                     e.event_type.includes('idle') ? <Clock className="w-5 h-5" /> :
+                    {eventType.includes('page') ? <Eye className="w-5 h-5" /> :
+                     eventType.includes('click') ? <MousePointerClick className="w-5 h-5" /> :
+                     eventType.includes('form') ? <FormInput className="w-5 h-5" /> :
+                     eventType.includes('hover') ? <MousePointer2 className="w-5 h-5" /> :
+                     eventType.includes('focus') ? <Focus className="w-5 h-5" /> :
+                     eventType.includes('idle') || eventType.includes('inactive') ? <Clock className="w-5 h-5" /> :
                      <Zap className="w-5 h-5" />}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">{e.event_type.replace(/_/g, ' ')}</span>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">{eventType.replace(/_/g, ' ')}</span>
                       <span className="text-[10px] text-surface-600 font-mono tracking-tighter bg-surface-900 px-1.5 py-0.5 rounded">UID: {e.user_id}</span>
                     </div>
                     <p className="text-sm font-medium text-surface-500 mt-0.5">
@@ -97,7 +108,8 @@ export default function LiveStream() {
                   <p className="text-[10px] text-surface-600 mt-1">{new Date(e.timestamp * 1000).toLocaleDateString()}</p>
                 </div>
               </motion.div>
-            ))}
+              );
+            })}
           </AnimatePresence>
           
           {allEvents.length === 0 && !loading && (

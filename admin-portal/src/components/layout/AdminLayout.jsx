@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Zap, ShieldAlert, Trash2, Cpu, 
-  Settings, Radio, Clock, BarChart3, LogOut, Menu, X, Bell
+  Settings, Radio, Clock, BarChart3, LogOut, Menu, X, Bell, Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -16,6 +16,7 @@ export default function AdminLayout() {
     { name: 'Live Stream', icon: Radio, path: '/live' },
     { name: 'Event Tracking', icon: Zap, path: '/events' },
     { name: 'Session Timeline', icon: Clock, path: '/timeline' },
+    { name: 'Notification Engine', icon: Send, path: '/notifications' },
     { name: 'ML Intelligence', icon: Cpu, path: '/ml' },
   ];
 

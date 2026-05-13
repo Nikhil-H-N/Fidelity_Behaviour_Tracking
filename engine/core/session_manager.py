@@ -1,18 +1,19 @@
 import time
 from typing import Dict, List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class Event(BaseModel):
     user_id: str
     event_type: str  # click, view, form_start, form_complete, hover, scroll, blur, focus
     page_id: str
     element_id: Optional[str] = None
+    raw_event_type: Optional[str] = None
     dwell_time: float = 0.0
     scroll_depth: Optional[float] = 0.0 # % of page scrolled
     idle_time: Optional[float] = 0.0   # seconds spent idle
     mouse_move_count: Optional[int] = 0
-    metadata: Dict = {}
-    timestamp: float = time.time()
+    metadata: Dict = Field(default_factory=dict)
+    timestamp: float = Field(default_factory=time.time)
 
 class GlobalConfig:
     def __init__(self):
@@ -47,10 +48,146 @@ class SessionState:
         self.total_score: float = 0.0
         self.intent_state: str = "EXPLORING"
         self.last_active: float = time.time()
+        self.created_at: float = self.last_active
         self.metadata: Dict = {}
         self.manual_interventions: List[Dict] = [] # Interventions forced by Admin
+
+    @staticmethod
+    def display_event_type(event: Dict) -> str:
+        metadata = event.get("metadata") or {}
+        raw = event.get("raw_event_type") or metadata.get("rawEventType") or metadata.get("raw_event_type")
+        if raw:
+            return str(raw)
+
+        reverse_map = {
+            "page_visit": "page_view",
+            "cta_click": "button_click",
+            "scroll": "scroll_depth",
+            "form_completion": "form_submit",
+            "form_abandonment": "form_abandon",
+            "return_session": "return_visit",
+            "rage_click": "rapid_click",
+            "idle_timeout": "inactive_session",
+        }
+        return reverse_map.get(event.get("event_type"), event.get("event_type", "unknown"))
+
+    @staticmethod
+    def describe_event(event: Dict) -> str:
+        display_type = SessionState.display_event_type(event)
+        page = event.get("page_id") or "unknown"
+        element = event.get("element_id")
+
+        descriptions = {
+            "session_start": f"Started session on {page}",
+            "session_end": "Left website",
+            "page_view": f"Opened {page} page",
+            "button_click": f"Clicked {element or 'CTA'}",
+            "scroll_depth": f"Reached {int(event.get('scroll_depth') or 0)}% scroll on {page}",
+            "time_spent": f"Spent {int(event.get('dwell_time') or 0)}s on {page}",
+            "form_start": "Started form",
+            "form_submit": "Submitted form",
+            "form_abandon": "Abandoned form",
+            "notification_open": "Opened notification",
+            "return_visit": f"Returned to {page}",
+            "repeated_page_visit": f"Revisited {page}",
+            "mouse_movement": "Mouse movement recorded",
+            "rapid_click": f"Rapid clicks on {element or 'element'}",
+            "inactive_session": "Inactive session detected",
+            "bounce": "Bounce detected",
+        }
+        return descriptions.get(display_type, display_type.replace("_", " ").title())
+
+    def session_metrics(self) -> Dict:
+        events = self.events
+        if not events:
+            return {
+                "session_start": self.created_at,
+                "session_end": None,
+                "total_duration": 0,
+                "pages_visited": [],
+                "navigation_flow": [],
+                "bounce": False,
+                "returning_user": False,
+                "event_counts": {},
+                "rapid_clicks": 0,
+                "inactive_detected": False,
+                "mouse_movement_count": 0,
+                "repeated_page_visits": 0,
+                "replay_timeline": [],
+            }
+
+        display_events = [self.display_event_type(event) for event in events]
+        event_counts: Dict[str, int] = {}
+        for event_type in display_events:
+            event_counts[event_type] = event_counts.get(event_type, 0) + 1
+
+        view_types = {"page_view", "return_visit", "repeated_page_visit"}
+        page_sequence = [
+            event.get("page_id")
+            for event, event_type in zip(events, display_events)
+            if event_type in view_types and event.get("page_id")
+        ]
+
+        pages_visited = []
+        for page in page_sequence:
+            if page not in pages_visited:
+                pages_visited.append(page)
+
+        navigation_flow = []
+        previous_page = None
+        for event, event_type in zip(events, display_events):
+            page = event.get("page_id")
+            if event_type in view_types and page and page != previous_page:
+                navigation_flow.append({
+                    "page": page,
+                    "timestamp": event.get("timestamp", self.created_at),
+                    "event_type": event_type,
+                })
+                previous_page = page
+
+        session_start = events[0].get("timestamp", self.created_at)
+        session_end_event = next((event for event, event_type in zip(reversed(events), reversed(display_events)) if event_type == "session_end"), None)
+        session_end = session_end_event.get("timestamp") if session_end_event else None
+        total_duration = max(0, events[-1].get("timestamp", session_start) - session_start)
+
+        meaningful_events = {
+            "button_click", "form_start", "form_submit", "form_abandon",
+            "notification_open", "return_visit", "repeated_page_visit"
+        }
+        meaningful_count = sum(1 for event_type in display_events if event_type in meaningful_events)
+        bounce = "bounce" in display_events or (
+            len(pages_visited) <= 1 and meaningful_count == 0 and total_duration <= 30
+        )
+
+        replay_timeline = [
+            {
+                "timestamp": event.get("timestamp", session_start),
+                "event_type": self.display_event_type(event),
+                "page": event.get("page_id"),
+                "element": event.get("element_id"),
+                "description": self.describe_event(event),
+            }
+            for event in events[-100:]
+        ]
+
+        return {
+            "session_start": session_start,
+            "session_end": session_end,
+            "total_duration": total_duration,
+            "pages_visited": pages_visited,
+            "navigation_flow": navigation_flow,
+            "bounce": bounce,
+            "returning_user": any(event_type in {"return_visit", "repeated_page_visit"} for event_type in display_events),
+            "event_counts": event_counts,
+            "rapid_clicks": event_counts.get("rapid_click", 0),
+            "inactive_detected": event_counts.get("inactive_session", 0) > 0,
+            "mouse_movement_count": sum(int(event.get("mouse_move_count") or 0) for event in events),
+            "repeated_page_visits": event_counts.get("repeated_page_visit", 0),
+            "replay_timeline": replay_timeline,
+        }
         
     def to_dict(self):
+        metrics = self.session_metrics()
         return {
             "user_id": self.user_id,
             "total_score": self.total_score,
@@ -58,7 +195,8 @@ class SessionState:
             "event_count": len(self.events),
             "events": self.events,
             "last_active": self.last_active,
-            "manual_interventions_pending": len(self.manual_interventions)
+            "manual_interventions_pending": len(self.manual_interventions),
+            **metrics,
         }
 
     def pop_interventions(self) -> List[Dict]:
@@ -79,7 +217,20 @@ class SessionManager:
 
     def add_event(self, event: Event):
         session = self.get_or_create_session(event.user_id)
-        session.events.append(event.model_dump())
+        event_data = event.model_dump()
+        metadata = event_data.get("metadata") or {}
+        for source_key, target_key in {
+            "userEmail": "email",
+            "email": "email",
+            "userName": "name",
+            "fullName": "name",
+            "clientSessionId": "client_session_id",
+        }.items():
+            value = metadata.get(source_key)
+            if value:
+                session.metadata[target_key] = value
+
+        session.events.append(event_data)
         session.last_active = time.time()
         return session
 
