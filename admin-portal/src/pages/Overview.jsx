@@ -1,29 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Users, TrendingUp, Zap, Activity, 
-  Settings, Save, Cpu
+  Settings, Save, Cpu, Globe, Eye
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { KPICard } from '../components/UIComponents';
+import { engineApi } from '../utils/apiBase';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = engineApi('');
 
 export default function Overview() {
   const [summary, setSummary] = useState(null);
+  const [activeUsers, setActiveUsers] = useState([]);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const fetchData = async () => {
     try {
-      const [summaryRes, configRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/analytics/summary`),
-        fetch(`${API_BASE}/admin/config`)
+      const [summaryRes, configRes, usersRes] = await Promise.all([
+        fetch(engineApi('/admin/analytics/summary')),
+        fetch(engineApi('/admin/config')),
+        fetch(engineApi('/admin/active-users?include_events=false'))
       ]);
       
-      if (summaryRes.ok && configRes.ok) {
+      if (summaryRes.ok && configRes.ok && usersRes.ok) {
         setSummary(await summaryRes.json());
         setConfig(await configRes.json());
+        setActiveUsers(await usersRes.json());
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -38,12 +42,18 @@ export default function Overview() {
     return () => clearInterval(interval);
   }, []);
 
+  const externalCount = useMemo(() => {
+    return activeUsers.filter(u => u.metadata?.connection_origin === 'remote').length;
+  }, [activeUsers]);
+
   const handleUpdateConfig = async () => {
     setSaving(true);
     try {
-      await fetch(`${API_BASE}/admin/config/update`, {
+      await fetch(engineApi('/admin/config/update'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(config),
       });
       alert('Config Synced to Engine');
@@ -52,7 +62,9 @@ export default function Overview() {
   };
 
   const handleTrain = async () => {
-    await fetch(`${API_BASE}/admin/train-global-model`, { method: 'POST' });
+    await fetch(engineApi('/admin/train-global-model'), { 
+      method: 'POST'
+    });
     alert('Global ML training started');
   };
 
@@ -80,9 +92,9 @@ export default function Overview() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <KPICard icon={Users} label="LIVE SESSIONS" value={summary?.total_users || 0} trend="+12%" />
+        <KPICard icon={Globe} label="REMOTE USERS" value={externalCount} color="text-amber-400" />
         <KPICard icon={TrendingUp} label="AVG INTENT" value={Math.round(summary?.avg_score || 0)} trend="+4.2" />
         <KPICard icon={Zap} label="CONV. PROB" value={`${((summary?.avg_conversion_probability || 0) * 100).toFixed(1)}%`} />
-        <KPICard icon={Activity} label="ENGINE LOAD" value="42ms" color="text-emerald-400" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -157,23 +169,42 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* Psychological Segments */}
-      <div className="bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
-        <h3 className="font-bold mb-6 flex items-center gap-2 text-lg text-white">
-          <Activity className="w-5 h-5 text-emerald-400" /> Psychological Persona Clustering
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {Object.entries(summary?.clustering_segments || {}).map(([persona, count]) => (
-            <div key={persona} className="p-5 rounded-2xl bg-surface-950 border border-surface-800 hover:border-surface-700 transition-all group">
-              <p className="text-[10px] font-bold text-surface-500 uppercase mb-3 tracking-widest group-hover:text-surface-300 transition-colors">{persona.replace(/_/g, ' ')}</p>
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-bold text-white tracking-tighter">{count}</p>
-                <div className="w-1.5 h-8 bg-surface-800 rounded-full overflow-hidden">
-                  <div className="w-full bg-primary-500" style={{ height: `${(count / (summary?.total_users || 1)) * 100}%` }} />
+      {/* Top Pages & Persona Clusters */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-1 bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
+           <h3 className="font-bold mb-6 flex items-center gap-2 text-lg text-white">
+            <Eye className="w-5 h-5 text-indigo-400" /> Top Visited Pages
+          </h3>
+          <div className="space-y-4">
+            {summary?.top_pages?.map(([page, count], idx) => (
+              <div key={page} className="flex items-center justify-between p-3 rounded-xl bg-surface-950 border border-surface-800">
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold text-surface-600 font-mono">#{idx + 1}</span>
+                  <span className="text-sm text-surface-300 truncate max-w-[150px]">{page}</span>
+                </div>
+                <span className="text-sm font-bold text-primary-400 font-mono">{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="lg:col-span-2 bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
+          <h3 className="font-bold mb-6 flex items-center gap-2 text-lg text-white">
+            <Activity className="w-5 h-5 text-emerald-400" /> Psychological Persona Clustering
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {Object.entries(summary?.clustering_segments || {}).map(([persona, count]) => (
+              <div key={persona} className="p-5 rounded-2xl bg-surface-950 border border-surface-800 hover:border-surface-700 transition-all group">
+                <p className="text-[10px] font-bold text-surface-500 uppercase mb-3 tracking-widest group-hover:text-surface-300 transition-colors">{persona.replace(/_/g, ' ')}</p>
+                <div className="flex items-end justify-between">
+                  <p className="text-3xl font-bold text-white tracking-tighter">{count}</p>
+                  <div className="w-1.5 h-8 bg-surface-800 rounded-full overflow-hidden">
+                    <div className="w-full bg-primary-500" style={{ height: `${(count / (summary?.total_users || 1)) * 100}%` }} />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>

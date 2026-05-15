@@ -12,7 +12,7 @@ const Event = require("../models/Event");
 const Session = require("../models/Session");
 const { updateUserIntentScore, evaluateRules } = require("./intentEngine");
 
-const ENGINE_URL = process.env.ENGINE_URL || "http://localhost:8000/analyze";
+const ENGINE_URL = process.env.ENGINE_URL || "http://127.0.0.1:8000/analyze";
 
 const MONGO_EVENT_ALIASES = {
   click: "button_click",
@@ -21,6 +21,11 @@ const MONGO_EVENT_ALIASES = {
   form_complete: "form_submit",
   form_completion: "form_submit",
   form_abandonment: "form_abandon",
+  comparison_view: "comparison",
+  pricing_view: "product_view",
+  checkout_abandonment: "checkout_abandon",
+  exit_near_conversion: "checkout_abandon",
+  calculator: "calculator_usage",
   mouse_activity: "mouse_movement",
   rage_click: "rapid_click",
   idle_timeout: "inactive_session",
@@ -33,7 +38,14 @@ const MEANINGFUL_SESSION_EVENTS = new Set([
   "form_start",
   "form_submit",
   "form_abandon",
+  "checkout_start",
+  "checkout_complete",
+  "checkout_abandon",
+  "comparison",
+  "product_view",
+  "calculator_usage",
   "notification_open",
+  "chatbot_message",
   "return_visit",
   "repeated_page_visit",
   "investment_intent",
@@ -73,7 +85,7 @@ const getMetadata = (event) => (
   event.metadata && typeof event.metadata === "object" ? event.metadata : {}
 );
 
-const resolveMongoSession = async (userId, rawEvent, cache) => {
+const resolveMongoSession = async (userId, rawEvent, cache, clientIp) => {
   const metadata = getMetadata(rawEvent);
   const rawSessionId = rawEvent.sessionId || rawEvent.session_id || metadata.clientSessionId;
   const cacheKey = rawSessionId || "active";
@@ -92,11 +104,24 @@ const resolveMongoSession = async (userId, rawEvent, cache) => {
   if (!session) {
     const priorSessions = await Session.countDocuments({ userId });
     const page = rawEvent.page || rawEvent.page_id || rawEvent.pageId || metadata.page || null;
+    
+    // Determine connection origin
+    let connectionOrigin = "external";
+    if (clientIp) {
+      if (clientIp === "127.0.0.1" || clientIp === "::1" || clientIp.startsWith("192.168.") || clientIp.startsWith("10.")) {
+        connectionOrigin = "internal";
+      } else {
+        connectionOrigin = "remote";
+      }
+    }
+
     session = await Session.create({
       userId,
       device: rawEvent.device || metadata.device || "unknown",
       browser: rawEvent.browser || metadata.browser || "unknown",
       location: rawEvent.location || metadata.location || "unknown",
+      clientIp,
+      connectionOrigin,
       entrySource: rawEvent.source || metadata.source || "direct",
       returningUser: priorSessions > 0 || Boolean(metadata.returningUser),
       sessionStart: new Date(),
@@ -134,12 +159,16 @@ const buildEnrichedEvent = (userId, rawEvent, session) => {
     duration: asNumber(rawEvent.duration ?? rawEvent.dwellTime ?? metadata.duration ?? metadata.timeSpent, null),
     scrollDepth,
     intentScore: asNumber(rawEvent.intentScore ?? rawEvent.intent_score, null),
+    x: asNumber(rawEvent.x ?? metadata.x, null),
+    y: asNumber(rawEvent.y ?? metadata.y, null),
     device: rawEvent.device || metadata.device || null,
     browser: rawEvent.browser || metadata.browser || null,
     metadata: {
       ...metadata,
       rawEventType: originalEventType || eventType,
       clientSessionId: rawEvent.sessionId || rawEvent.session_id || metadata.clientSessionId || null,
+      clientIp: session?.clientIp || null,
+      connectionOrigin: session?.connectionOrigin || "external",
     },
     timestamp,
   };
@@ -225,6 +254,8 @@ const forwardToEngine = async (userId, event) => {
         scroll_depth: event.scrollDepth || asNumber(metadata.scrollDepth ?? metadata.depth, 0),
         idle_time: asNumber(metadata.idleTime ?? metadata.idle_time, event.eventType === "inactive_session" ? event.duration || 0 : 0),
         mouse_move_count: asNumber(metadata.moveCount ?? metadata.move_count ?? metadata.mouseMoveCount, 0),
+        x: event.x,
+        y: event.y,
         metadata,
       }),
     });
@@ -241,7 +272,7 @@ const forwardToEngine = async (userId, event) => {
  * Enriches each event with user/session context, computes intent, and forwards
  * all events to the Python engine even when Mongo persistence is unavailable.
  */
-const processBatchEvents = async (userId, events) => {
+const processBatchEvents = async (userId, events, clientIp) => {
   const hasMongoUser = isValidObjectId(userId);
   const sessionCache = new Map();
   const enriched = [];
@@ -249,7 +280,7 @@ const processBatchEvents = async (userId, events) => {
 
   for (const rawEvent of events) {
     const session = hasMongoUser
-      ? await resolveMongoSession(userId, rawEvent, sessionCache)
+      ? await resolveMongoSession(userId, rawEvent, sessionCache, clientIp)
       : null;
     const event = buildEnrichedEvent(userId, rawEvent, session);
 

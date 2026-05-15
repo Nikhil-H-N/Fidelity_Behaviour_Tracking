@@ -99,14 +99,104 @@ class GlobalIntentModel:
         drop_off_prediction = "HIGH" if features['frustration_score'] > 0.3 or features['interaction_density'] < 1 else "LOW"
         re_engagement_need = "YES" if prob > 0.5 and any(e['event_type'] in ['form_abandonment', 'exit_near_conversion'] for e in session_events) else "NO"
         churn_prediction = features['frustration_score'] * 0.8 + (1 - prob) * 0.2
+        next_action = self.predict_next_action(session_events, features, prob)
         
         return {
             "conversion_probability": prob,
             "drop_off_prediction": drop_off_prediction,
             "re_engagement_need": re_engagement_need,
             "churn_prediction": min(1.0, churn_prediction),
+            "next_action_prediction": next_action,
             "reasons": reasons,
             "top_features": sorted(features.items(), key=lambda x: x[1], reverse=True)[:5]
+        }
+
+    def predict_next_action(self, session_events: List[Dict], features: Dict = None, conversion_probability: float = 0.0) -> Dict:
+        """Predicts the user's likely next action from recent sequence + intent features."""
+        if not session_events:
+            return {
+                "action": "page_view",
+                "label": "Continue browsing",
+                "probability": 0.35,
+                "reasons": ["no_session_history"],
+                "alternatives": ["compare_plans", "open_calculator"],
+            }
+
+        features = features or self.extract_features(session_events)
+        recent = session_events[-8:]
+        recent_types = [event.get("event_type") for event in recent]
+        recent_pages = [event.get("page_id") for event in recent if event.get("page_id")]
+        last_type = recent_types[-1]
+        last_page = recent_pages[-1] if recent_pages else "unknown"
+        reasons = []
+
+        if last_type in {"form_abandonment", "checkout_abandon", "idle_timeout"}:
+            reasons.append("recent_form_or_idle_dropoff")
+            return {
+                "action": "return_to_form",
+                "label": "Return to application form",
+                "probability": 0.78,
+                "reasons": reasons,
+                "alternatives": ["request_advisor", "compare_plans"],
+            }
+
+        if last_type in {"form_start", "form_progress"} or features.get("form_progress", 0) >= 50:
+            reasons.append("active_form_progress")
+            return {
+                "action": "form_submit",
+                "label": "Complete form",
+                "probability": min(0.88, max(0.55, conversion_probability + 0.25)),
+                "reasons": reasons,
+                "alternatives": ["save_draft", "request_advisor"],
+            }
+
+        if features.get("calculator_usage", 0) and features.get("pricing_views", 0):
+            reasons.extend(["calculator_usage", "product_pricing_view"])
+            return {
+                "action": "checkout_start",
+                "label": "Start application",
+                "probability": min(0.82, conversion_probability + 0.2),
+                "reasons": reasons,
+                "alternatives": ["compare_plans", "download_brochure"],
+            }
+
+        if recent_types.count("comparison_view") >= 1 or "plan_comparison" in last_page:
+            reasons.append("comparison_behavior")
+            return {
+                "action": "product_view",
+                "label": "Open product details",
+                "probability": 0.62,
+                "reasons": reasons,
+                "alternatives": ["open_calculator", "request_advisor"],
+            }
+
+        if recent_types.count("faq_open") >= 2 or features.get("faq_count", 0) >= 3:
+            reasons.append("faq_research_pattern")
+            return {
+                "action": "request_advisor",
+                "label": "Ask for advisor help",
+                "probability": 0.58,
+                "reasons": reasons,
+                "alternatives": ["compare_plans", "open_calculator"],
+            }
+
+        if features.get("navigation_depth", 0) >= 3:
+            reasons.append("multi_page_research")
+            return {
+                "action": "compare_plans",
+                "label": "Compare plans",
+                "probability": 0.56,
+                "reasons": reasons,
+                "alternatives": ["product_view", "open_calculator"],
+            }
+
+        reasons.append("early_exploration")
+        return {
+            "action": "page_view",
+            "label": "Continue browsing",
+            "probability": 0.42,
+            "reasons": reasons,
+            "alternatives": ["compare_plans", "open_calculator"],
         }
 
     def train_on_global_data(self, all_sessions: List[List[Dict]], labels: List[int]):

@@ -12,8 +12,8 @@ export default function SIPPlans() {
 
   const totalMonthly = activeSIPs.reduce((s, sip) => s + sip.amount, 0);
 
-  const openSipModal = () => {
-    trackClick('start_new_sip', { page: 'sip-plans' });
+  const openSipModal = (e) => {
+    trackClick('start_new_sip', { page: 'sip-plans' }, e);
     setSipModalOpen(true);
   };
 

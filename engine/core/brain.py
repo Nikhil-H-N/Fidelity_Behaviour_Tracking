@@ -94,6 +94,11 @@ class DecisionBrain:
         if temporal_intelligence['scroll_velocity'] == "FAST_SCANNING":
             states.append("PASSIVE_BROWSER") # Just scanning, not deep
 
+        if temporal_intelligence['night_browsing']:
+            states.append("NIGHT_BROWSER")
+        if temporal_intelligence['weekend_browsing']:
+            states.append("WEEKEND_ENGAGEMENT")
+
         # 5. Financial User Personas (Section 95)
         personas = self.infer_personas(session.events, patterns)
         
@@ -132,6 +137,8 @@ class DecisionBrain:
 
         # 10. ML Integration (Section 61-70)
         conversion_data = self.global_intent_model.predict_conversion_probability(session.events)
+        session.metadata['conversion_probability'] = conversion_data['conversion_probability']
+        session.metadata['next_action_prediction'] = conversion_data['next_action_prediction']
         
         # Persist Features for future training (Section 64)
         session.metadata['last_feature_vector'] = self.global_intent_model.extract_features(session.events)
@@ -164,6 +171,7 @@ class DecisionBrain:
                 "drop_off_prediction": conversion_data['drop_off_prediction'],
                 "re_engagement_need": conversion_data['re_engagement_need'],
                 "churn_prediction": conversion_data['churn_prediction'],
+                "next_action_prediction": conversion_data['next_action_prediction'],
                 "prediction_reasons": conversion_data['reasons'],
                 "feature_importance": conversion_data['top_features']
             },

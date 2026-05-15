@@ -18,6 +18,15 @@ const SIGNAL_WEIGHTS = {
   form_start: 10,
   form_submit: 25,
   form_abandon: -5,
+  checkout_start: 18,
+  checkout_complete: 35,
+  checkout_abandon: -8,
+  product_view: 8,
+  comparison: 12,
+  calculator_usage: 14,
+  download_brochure: 10,
+  contact_advisor: 18,
+  chatbot_message: 7,
   scroll: 1,
   modal_open: 8,
   investment_intent: 15,
@@ -31,6 +40,12 @@ const HIGH_INTENT_PAGES = [
   "/mutual-funds",
   "/sip-plans",
   "/investment-plans",
+  "/insurance-plans",
+  "/tax-saving",
+  "/tax-saving-plans",
+  "/wealth-management",
+  "/plan-comparison",
+  "/checkout",
   "/goal-planning",
   "/retirement-planning",
 ];
@@ -90,6 +105,12 @@ const calculateIntentScore = async (userId, windowHours = 24) => {
 
   const formAbandons = events.filter((e) => e.eventType === "form_abandon").length;
   if (formAbandons > 0) signals.push(`Abandoned ${formAbandons} form(s)`);
+
+  const checkoutSignals = events.filter((e) => ["checkout_start", "checkout_abandon", "checkout_complete"].includes(e.eventType)).length;
+  if (checkoutSignals > 0) signals.push(`${checkoutSignals} checkout signal(s)`);
+
+  const productViews = events.filter((e) => e.eventType === "product_view").length;
+  if (productViews >= 2) signals.push(`Viewed ${productViews} product details`);
 
   const deepScrolls = events.filter(
     (e) => e.scrollDepth && e.scrollDepth > 70
@@ -154,6 +175,9 @@ const evaluateRules = async (userId) => {
     (e) => e.eventType === "button_click" && e.buttonName?.includes("Invest")
   ).length;
   const hasAbandon = events.some((e) => e.eventType === "form_abandon");
+  const checkoutAbandons = events.filter((e) => e.eventType === "checkout_abandon").length;
+  const productViews = events.filter((e) => e.eventType === "product_view").length;
+  const comparisons = events.filter((e) => e.eventType === "comparison").length;
 
   if (totalDuration > 180 && investClicks >= 2 && hasAbandon) {
     triggered.push({
@@ -190,6 +214,25 @@ const evaluateRules = async (userId) => {
       rule: "form_abandon_nudge",
       action: "in_app",
       reason: `User abandoned ${recentAbandons.length} form(s) in the last 2 hours`,
+    });
+  }
+
+  // Rule 4: Product comparison but no checkout completion
+  const hasCheckoutComplete = events.some((e) => e.eventType === "checkout_complete" || e.eventType === "form_submit");
+  if ((comparisons >= 2 || productViews >= 3) && !hasCheckoutComplete) {
+    triggered.push({
+      rule: "comparison_without_conversion",
+      action: "in_app",
+      reason: `User compared/viewed products ${comparisons + productViews} times without completing checkout`,
+    });
+  }
+
+  // Rule 5: Checkout recovery
+  if (checkoutAbandons >= 1) {
+    triggered.push({
+      rule: "checkout_recovery",
+      action: "email",
+      reason: `User abandoned checkout ${checkoutAbandons} time(s) after showing application intent`,
     });
   }
 

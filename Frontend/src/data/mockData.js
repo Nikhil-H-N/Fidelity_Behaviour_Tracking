@@ -173,3 +173,34 @@ export const adminStats = {
   triggersFired: 12800,
   conversionFromTriggers: 23.5,
 };
+
+// ─── Admin Preview Override ───────────────────────────────────
+// If the app is loaded via the admin portal preview iframe, we dynamically
+// mutate the mock data to provide distinctly different "preview" metrics.
+const isAdminPreview = typeof window !== 'undefined' && window.location.search.includes('adminPreview=true');
+
+if (isAdminPreview) {
+  portfolioSummary.totalValue = 5432100;
+  portfolioSummary.totalInvested = 3800000;
+  portfolioSummary.totalReturns = 1632100;
+  portfolioSummary.returnPercent = 42.95;
+  portfolioSummary.todayChange = -8500;
+  portfolioSummary.todayChangePercent = -0.15;
+
+  if (activeSIPs.length > 2) {
+    activeSIPs[0].amount = 15000;
+    activeSIPs[1].amount = 25000;
+    activeSIPs[2].amount = 50000;
+  }
+
+  if (goals.length > 2) {
+    goals[0].current = 4500000;
+    goals[1].current = 2800000;
+    goals[2].current = 15000000;
+  }
+  
+  portfolioPerformance.forEach(p => {
+    p.value = Math.floor(p.value * 1.85);
+    p.benchmark = Math.floor(p.benchmark * 1.5);
+  });
+}

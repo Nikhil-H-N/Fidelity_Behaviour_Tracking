@@ -12,6 +12,8 @@ class Event(BaseModel):
     scroll_depth: Optional[float] = 0.0 # % of page scrolled
     idle_time: Optional[float] = 0.0   # seconds spent idle
     mouse_move_count: Optional[int] = 0
+    x: Optional[float] = None
+    y: Optional[float] = None
     metadata: Dict = Field(default_factory=dict)
     timestamp: float = Field(default_factory=time.time)
 
@@ -90,6 +92,15 @@ class SessionState:
             "notification_open": "Opened notification",
             "return_visit": f"Returned to {page}",
             "repeated_page_visit": f"Revisited {page}",
+            "product_view": f"Viewed product details on {page}",
+            "comparison": "Compared financial products",
+            "checkout_start": "Started application checkout",
+            "checkout_abandon": "Abandoned checkout",
+            "checkout_complete": "Completed checkout application",
+            "calculator_usage": f"Used calculator on {page}",
+            "download_brochure": f"Downloaded brochure from {page}",
+            "contact_advisor": "Requested advisor contact",
+            "chatbot_message": "Asked the AI assistant a question",
             "mouse_movement": "Mouse movement recorded",
             "rapid_click": f"Rapid clicks on {element or 'element'}",
             "inactive_session": "Inactive session detected",
@@ -152,6 +163,8 @@ class SessionState:
 
         meaningful_events = {
             "button_click", "form_start", "form_submit", "form_abandon",
+            "product_view", "comparison", "checkout_start", "checkout_complete",
+            "checkout_abandon", "calculator_usage", "contact_advisor", "chatbot_message",
             "notification_open", "return_visit", "repeated_page_visit"
         }
         meaningful_count = sum(1 for event_type in display_events if event_type in meaningful_events)
@@ -225,12 +238,22 @@ class SessionManager:
             "userName": "name",
             "fullName": "name",
             "clientSessionId": "client_session_id",
+            "clientIp": "client_ip",
+            "connectionOrigin": "connection_origin",
+            "trackingUserId": "tracking_user_id",
         }.items():
             value = metadata.get(source_key)
             if value:
                 session.metadata[target_key] = value
 
         session.events.append(event_data)
+        
+        # Ensure x and y are present at top level if they were in metadata
+        if event_data.get("x") is None and metadata.get("x") is not None:
+            event_data["x"] = metadata.get("x")
+        if event_data.get("y") is None and metadata.get("y") is not None:
+            event_data["y"] = metadata.get("y")
+
         session.last_active = time.time()
         return session
 

@@ -5,8 +5,9 @@ import {
   BarChart3, RefreshCw
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { engineApi } from '../utils/apiBase';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = engineApi('');
 
 export default function MLIntelligence() {
   const [config, setConfig] = useState(null);
@@ -15,7 +16,7 @@ export default function MLIntelligence() {
 
   const fetchConfig = async () => {
     try {
-      const res = await fetch(`${API_BASE}/admin/config`);
+      const res = await fetch(engineApi('/admin/config'));
       if (res.ok) {
         setConfig(await res.json());
       }
@@ -33,7 +34,7 @@ export default function MLIntelligence() {
   const handleUpdateConfig = async () => {
     setSaving(true);
     try {
-      await fetch(`${API_BASE}/admin/config/update`, {
+      await fetch(engineApi('/admin/config/update'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -44,7 +45,7 @@ export default function MLIntelligence() {
   };
 
   const handleTrain = async () => {
-    await fetch(`${API_BASE}/admin/train-global-model`, { method: 'POST' });
+    await fetch(engineApi('/admin/train-global-model'), { method: 'POST' });
     alert('Global ML training cycle started in background');
   };
 

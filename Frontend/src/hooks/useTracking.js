@@ -23,6 +23,22 @@ const markInteraction = (amount = 1) => {
   sessionStorage.setItem('fw_interactionCount', String(current + amount));
 };
 
+const getClickCoordinates = (event) => ({
+  x: event.pageX,
+  y: event.pageY,
+  pageX: event.pageX,
+  pageY: event.pageY,
+  clientX: event.clientX,
+  clientY: event.clientY,
+  scrollX: window.scrollX,
+  scrollY: window.scrollY,
+  screenWidth: window.innerWidth,
+  screenHeight: window.innerHeight,
+  pageWidth: document.documentElement.scrollWidth,
+  pageHeight: document.documentElement.scrollHeight,
+  coordinateSpace: 'page',
+});
+
 const incrementPageVisit = (pageName) => {
   const visits = JSON.parse(localStorage.getItem('fw_pageVisitCounts') || '{}');
   const previousVisits = visits[pageName] || 0;
@@ -119,17 +135,25 @@ export const usePageTracking = (pageName) => {
 export const useClickTracking = () => {
   const addEvent = useStore((s) => s.addEvent);
 
-  const trackClick = useCallback((element, metadata = {}) => {
+  const trackClick = useCallback((element, metadata = {}, event = null) => {
     markInteraction();
 
-    const event = {
+    const clickData = {
+      ...metadata,
+    };
+
+    if (event && Number.isFinite(event.pageX) && Number.isFinite(event.pageY)) {
+      Object.assign(clickData, getClickCoordinates(event));
+    }
+
+    const localEvent = {
       type: 'button_click',
       element,
       timestamp: new Date().toISOString(),
       id: Date.now(),
-      ...metadata,
+      ...clickData,
     };
-    addEvent(event);
+    addEvent(localEvent);
 
     // Send to backend
     queueEvent({
@@ -137,7 +161,7 @@ export const useClickTracking = () => {
       element,
       page: metadata.page || null,
       sessionId: getSessionId(),
-      metadata,
+      metadata: clickData,
     });
   }, [addEvent]);
 
@@ -232,9 +256,20 @@ export const useInteractionTracking = () => {
     };
 
     const getTargetName = (target) => {
+      if (!target) return 'unknown';
       const element = target.closest('button, a, [role="button"], input, select, textarea');
-      if (!element) return null;
-      return element.id || element.name || element.getAttribute('aria-label') || element.innerText || element.tagName;
+      let name;
+      if (element) {
+        name = element.id || element.name || element.getAttribute('aria-label') || element.innerText || element.tagName;
+      } else {
+        name = target.id || target.tagName || 'unknown';
+      }
+      return String(name).slice(0, 50).trim() || 'unknown';
+    };
+
+    const getTrackingSurface = (target) => {
+      const surface = target?.closest?.('[data-tracking-surface]')?.getAttribute('data-tracking-surface');
+      return surface || 'page';
     };
 
     const handleClick = (e) => {
@@ -242,9 +277,23 @@ export const useInteractionTracking = () => {
       markInteraction();
 
       const targetName = getTargetName(e.target);
-      if (!targetName) return;
-
+      const trackingSurface = getTrackingSurface(e.target);
       const now = Date.now();
+
+      // GLOBALLY capture every click for heatmap density tracking
+      const currentPage = window.location.pathname.replace(/^\//, '') || 'landing';
+      queueEvent({
+        eventType: 'button_click',
+        element: targetName,
+        page: currentPage,
+        sessionId: getSessionId(),
+        metadata: { 
+          ...getClickCoordinates(e),
+          globalClick: true,
+          trackingSurface
+        },
+      });
+
       clickHistory.current = [
         ...clickHistory.current.filter((entry) => now - entry.timestamp <= 1500),
         { targetName, timestamp: now },
@@ -345,6 +394,54 @@ export const useSessionTimer = () => {
   return { duration, formatted: formatDuration(duration) };
 };
 
+// Track visibility changes, page exits, and tab-close style lifecycle events
+export const useSessionLifecycleTracking = () => {
+  const lastHiddenAt = useRef(null);
+
+  useEffect(() => {
+    const currentPage = () => window.location.pathname || '/';
+
+    const handleVisibilityChange = () => {
+      const hidden = document.visibilityState === 'hidden';
+      if (hidden) lastHiddenAt.current = Date.now();
+
+      queueEvent({
+        eventType: 'page_visibility',
+        page: currentPage(),
+        sessionId: getSessionId(),
+        metadata: {
+          state: document.visibilityState,
+          hiddenDuration: !hidden && lastHiddenAt.current
+            ? Math.round((Date.now() - lastHiddenAt.current) / 1000)
+            : 0,
+        },
+      });
+    };
+
+    const handlePageHide = () => {
+      const startedAt = Number(sessionStorage.getItem('fw_sessionStartedAt') || Date.now());
+      queueEvent({
+        eventType: 'page_exit',
+        page: currentPage(),
+        sessionId: getSessionId(),
+        duration: Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
+        metadata: {
+          reason: 'pagehide',
+          visibilityState: document.visibilityState,
+        },
+      });
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, []);
+};
+
 // Track form abandonment
 export const useFormTracking = (formName) => {
   const addEvent = useStore((s) => s.addEvent);
@@ -376,6 +473,24 @@ export const useFormTracking = (formName) => {
     });
   }, [formName, addEvent]);
 
+  const trackFormValidationError = useCallback((fieldName, errorType) => {
+    markInteraction();
+    addEvent({
+      type: 'form_validation_error',
+      form: formName,
+      field: fieldName,
+      error: errorType,
+      timestamp: new Date().toISOString(),
+      id: Date.now()
+    });
+
+    queueEvent({
+      eventType: 'form_validation_error',
+      sessionId: getSessionId(),
+      metadata: { form: formName, field: fieldName, error: errorType },
+    });
+  }, [formName, addEvent]);
+
   useEffect(() => {
     return () => {
       if (started.current) {
@@ -391,5 +506,5 @@ export const useFormTracking = (formName) => {
     };
   }, [formName, addEvent]);
 
-  return { trackFormStart, trackFormComplete };
+  return { trackFormStart, trackFormComplete, trackFormValidationError };
 };

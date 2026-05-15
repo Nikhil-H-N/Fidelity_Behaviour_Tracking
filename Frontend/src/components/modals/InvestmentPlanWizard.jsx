@@ -12,6 +12,11 @@ const modal = { hidden: { opacity: 0, scale: 0.92, y: 30 }, visible: { opacity: 
 const REQUIRED = ['goals', 'salaryRange', 'monthlySavings', 'riskAppetite', 'retirementAge'];
 const COLORS = ['#2E51F5', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
 const GOALS = ['Wealth Creation', 'Retirement', 'Child Education', 'Home Purchase', 'Emergency Fund', 'Tax Saving', 'Passive Income', 'Vacation'];
+const riskOptionClasses = {
+  conservative: 'border-accent-300 bg-accent-50 ring-1 ring-accent-200',
+  moderate: 'border-primary-300 bg-primary-50 ring-1 ring-primary-200',
+  aggressive: 'border-amber-300 bg-amber-50 ring-1 ring-amber-200',
+};
 
 export default function InvestmentPlanWizard({ isOpen, onClose, planName }) {
   const [step, setStep] = useState(0);
@@ -42,13 +47,13 @@ export default function InvestmentPlanWizard({ isOpen, onClose, planName }) {
     return Object.keys(e).length === 0;
   };
 
-  const next = () => { if (validateStep()) { if (step === 2) { generatePlan(); } setStep(s => Math.min(s + 1, 3)); } };
+  const next = (e) => { if (validateStep()) { if (step === 2) { generatePlan(e); } setStep(s => Math.min(s + 1, 3)); } };
   const prev = () => { if (step === 3) setShowResult(false); setStep(s => Math.max(s - 1, 0)); };
 
   // AI Plan generation
   const [plan, setPlan] = useState(null);
-  const generatePlan = () => {
-    trackClick('generate_plan', { goals: form.goals });
+  const generatePlan = (e) => {
+    trackClick('generate_plan', { goals: form.goals }, e);
     queueEvent({ eventType: 'investment_intent', formType: 'investment_plan', metadata: form });
 
     const riskMap = { conservative: 30, moderate: 50, aggressive: 75 };
@@ -95,11 +100,11 @@ export default function InvestmentPlanWizard({ isOpen, onClose, planName }) {
 
   return (
     <AnimatePresence>
-      <motion.div variants={overlay} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleClose}>
+      <motion.div variants={overlay} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm" onClick={handleClose}>
         <motion.div variants={modal} initial="hidden" animate="visible" exit="exit" className="relative w-full max-w-2xl bg-white rounded-2xl shadow-elevated overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary-700 via-primary-600 to-accent-600 px-6 py-5 text-white">
+          <div className="bg-gradient-to-r from-primary-700 via-primary-600 to-accent-600 px-4 sm:px-6 py-5 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3"><Brain className="w-6 h-6" /><div><h2 className="text-lg font-bold">{showResult ? 'Your Personalized Plan' : planName || 'Investment Plan Wizard'}</h2><p className="text-white/70 text-sm mt-0.5">{showResult ? 'AI-powered recommendation' : STEPS[step]}</p></div></div>
               <button onClick={handleClose} className="p-2 rounded-lg hover:bg-white/20 transition-colors"><X className="w-5 h-5" /></button>
@@ -112,14 +117,14 @@ export default function InvestmentPlanWizard({ isOpen, onClose, planName }) {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
             <AnimatePresence mode="wait">
               <motion.div key={step} initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-5">
 
                 {step === 0 && (<>
                   <div><p className="text-sm font-semibold text-surface-700 mb-3"><Target className="w-4 h-4 inline mr-1.5" />What are your financial goals?</p>
                     {errors.goals && <p className="text-xs text-red-500 mb-2">{errors.goals}</p>}
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid sm:grid-cols-2 gap-2">
                       {GOALS.map(g => (
                         <button key={g} onClick={() => toggleGoal(g)} className={`p-3 rounded-xl text-sm font-medium text-left transition-all border ${form.goals.includes(g) ? 'bg-primary-50 border-primary-300 text-primary-700 ring-1 ring-primary-200' : 'bg-white border-surface-200 text-surface-600 hover:border-surface-300'}`}>
                           {form.goals.includes(g) && <CheckCircle2 className="w-3.5 h-3.5 inline mr-1.5 text-primary-600" />}{g}
@@ -157,7 +162,7 @@ export default function InvestmentPlanWizard({ isOpen, onClose, planName }) {
                         { value: 'moderate', label: 'Moderate', desc: 'Balanced growth, 12-15% expected returns', color: 'primary' },
                         { value: 'aggressive', label: 'Aggressive', desc: 'Maximum growth, 15-20% potential returns', color: 'amber' },
                       ].map(r => (
-                        <label key={r.value} className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${form.riskAppetite === r.value ? `border-${r.color}-300 bg-${r.color}-50 ring-1 ring-${r.color}-200` : 'border-surface-100 hover:border-surface-200'}`}>
+                        <label key={r.value} className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-all ${form.riskAppetite === r.value ? riskOptionClasses[r.value] : 'border-surface-100 hover:border-surface-200'}`}>
                           <input type="radio" name="risk" className="accent-primary-600 w-4 h-4" checked={form.riskAppetite === r.value} onChange={() => update('riskAppetite', r.value)} />
                           <div><p className="text-sm font-semibold text-surface-900">{r.label}</p><p className="text-xs text-surface-400">{r.desc}</p></div>
                         </label>
@@ -174,7 +179,7 @@ export default function InvestmentPlanWizard({ isOpen, onClose, planName }) {
                   {/* AI Recommendation Card */}
                   <div className="bg-gradient-to-br from-primary-50 via-white to-accent-50 rounded-xl p-5 border border-primary-100">
                     <div className="flex items-center gap-2 mb-4"><Sparkles className="w-5 h-5 text-primary-600" /><h3 className="font-bold text-surface-900">AI Recommendation</h3></div>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="grid sm:grid-cols-2 gap-4 mb-4">
                       <div className="text-center p-3 bg-white rounded-xl shadow-soft"><p className="text-[10px] uppercase text-surface-400">Risk Score</p><p className="text-2xl font-bold text-primary-600">{plan.riskScore}</p><p className="text-[10px] text-surface-400">/100</p></div>
                       <div className="text-center p-3 bg-white rounded-xl shadow-soft"><p className="text-[10px] uppercase text-surface-400">Projected Value</p><p className="text-lg font-bold text-accent-600">{fmt(plan.projectedValue)}</p><p className="text-[10px] text-surface-400">at {plan.expectedReturn}% p.a.</p></div>
                     </div>
@@ -205,12 +210,12 @@ export default function InvestmentPlanWizard({ isOpen, onClose, planName }) {
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-surface-100 flex items-center justify-between bg-surface-50/50">
-            <div>{step > 0 && <button onClick={prev} className="btn-secondary text-sm py-2 px-4 gap-1"><ChevronLeft className="w-4 h-4" />Back</button>}</div>
+          <div className="px-4 sm:px-6 py-4 border-t border-surface-100 flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between bg-surface-50/50">
+            <div>{step > 0 && <button onClick={prev} className="btn-secondary w-full sm:w-auto text-sm py-2 px-4 gap-1"><ChevronLeft className="w-4 h-4" />Back</button>}</div>
             {step < 3 ? (
-              <button onClick={next} className="btn-primary text-sm py-2.5 px-6 gap-1">{step === 2 ? <><Sparkles className="w-4 h-4" />Generate Plan</> : <>Continue<ChevronRight className="w-4 h-4" /></>}</button>
+              <button onClick={next} className="btn-primary w-full sm:w-auto text-sm py-2.5 px-6 gap-1">{step === 2 ? <><Sparkles className="w-4 h-4" />Generate Plan</> : <>Continue<ChevronRight className="w-4 h-4" /></>}</button>
             ) : (
-              <button onClick={handleAdopt} className="btn-accent text-sm py-2.5 px-6 gap-1"><TrendingUp className="w-4 h-4" />Adopt This Plan</button>
+              <button onClick={handleAdopt} className="btn-accent w-full sm:w-auto text-sm py-2.5 px-6 gap-1"><TrendingUp className="w-4 h-4" />Adopt This Plan</button>
             )}
           </div>
         </motion.div>

@@ -6,8 +6,9 @@ import {
 } from 'lucide-react';
 import { KPICard } from '../components/UIComponents';
 import { getStatusColor } from '../utils/formatters';
+import { engineApi } from '../utils/apiBase';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = engineApi('');
 
 export default function BehavioralAnalytics() {
   const [activeUsers, setActiveUsers] = useState([]);
@@ -17,8 +18,8 @@ export default function BehavioralAnalytics() {
   const fetchData = async () => {
     try {
       const [usersRes, summaryRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/active-users`),
-        fetch(`${API_BASE}/admin/analytics/summary`)
+        fetch(engineApi('/admin/active-users?include_events=false')),
+        fetch(engineApi('/admin/analytics/summary'))
       ]);
       
       if (usersRes.ok && summaryRes.ok) {
@@ -93,6 +94,18 @@ export default function BehavioralAnalytics() {
           <div className="space-y-3 overflow-y-auto max-h-[450px] custom-scrollbar pr-2">
             {activeUsers.map(user => (
               <div key={user.user_id} className="p-4 rounded-xl bg-surface-950/50 border border-surface-800 hover:border-surface-700 transition-all group">
+                {(() => {
+                  const nextAction = user.metadata?.next_action_prediction;
+                  return nextAction ? (
+                    <div className="mb-3 rounded-xl bg-primary-500/10 border border-primary-500/20 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[10px] font-bold text-primary-300 uppercase tracking-widest">Predicted next action</span>
+                        <span className="text-[10px] font-mono text-primary-200">{Math.round((nextAction.probability || 0) * 100)}%</span>
+                      </div>
+                      <p className="text-sm font-bold text-white mt-1">{nextAction.label || nextAction.action}</p>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex flex-col">
                     <span className="text-xs font-mono text-surface-500 bg-surface-900 px-1.5 py-0.5 rounded w-fit mb-1">{user.user_id}</span>

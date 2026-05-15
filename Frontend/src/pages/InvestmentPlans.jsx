@@ -10,8 +10,8 @@ export default function InvestmentPlans() {
   const trackClick = useClickTracking();
   const [wizard, setWizard] = useState({ open: false, planName: '' });
 
-  const openWizard = (plan) => {
-    trackClick('get_started', { plan: plan.name, page: 'investment-plans' });
+  const openWizard = (plan, e) => {
+    trackClick('get_started', { plan: plan.name, page: 'investment-plans' }, e);
     setWizard({ open: true, planName: plan.name });
   };
 
@@ -46,7 +46,7 @@ export default function InvestmentPlans() {
                 </div>
               ))}
             </div>
-            <button onClick={() => openWizard(plan)} className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+            <button onClick={(e) => openWizard(plan, e)} className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
               i === 0 ? 'btn-primary' : 'btn-secondary'
             }`}>
               Get Started <ArrowRight className="w-4 h-4" />

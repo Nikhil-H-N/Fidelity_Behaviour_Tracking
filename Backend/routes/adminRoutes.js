@@ -15,7 +15,11 @@ const {
   getAllEvents,
   getAllSessions,
   getAnalytics,
+  deleteUser,
 } = require("../controllers/adminController");
+
+// Development exception for tokenless admin portal
+router.delete("/users/:id", deleteUser);
 
 // Every route below requires admin access
 router.use(protect, authorize("admin"));

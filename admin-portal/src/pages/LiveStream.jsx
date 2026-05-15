@@ -4,8 +4,9 @@ import {
   MousePointer2, Focus, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { engineApi } from '../utils/apiBase';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = engineApi('');
 
 const displayEventType = (event) => (
   event.raw_event_type ||
@@ -21,7 +22,7 @@ export default function LiveStream() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch(`${API_BASE}/admin/active-users`);
+        const res = await fetch(engineApi('/admin/active-users?event_limit=25'));
       if (res.ok) {
         setActiveUsers(await res.json());
       }
@@ -96,10 +97,22 @@ export default function LiveStream() {
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-white uppercase tracking-wider">{eventType.replace(/_/g, ' ')}</span>
                       <span className="text-[10px] text-surface-600 font-mono tracking-tighter bg-surface-900 px-1.5 py-0.5 rounded">UID: {e.user_id}</span>
+                      {e.metadata?.connectionOrigin && (
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter ${
+                          e.metadata.connectionOrigin === 'internal' ? 'bg-emerald-500/10 text-emerald-400' :
+                          e.metadata.connectionOrigin === 'remote' ? 'bg-amber-500/10 text-amber-400' :
+                          'bg-primary-500/10 text-primary-400'
+                        }`}>
+                          {e.metadata.connectionOrigin}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-medium text-surface-500 mt-0.5">
                       {e.page_id} {e.element_id ? <span className="text-surface-600 mx-1">/</span> : ''} 
                       <span className="text-surface-400">{e.element_id}</span>
+                      {e.metadata?.clientIp && (
+                        <span className="text-[10px] text-surface-700 ml-2 font-mono">[{e.metadata.clientIp}]</span>
+                      )}
                     </p>
                   </div>
                 </div>

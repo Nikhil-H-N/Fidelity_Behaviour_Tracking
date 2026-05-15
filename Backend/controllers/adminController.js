@@ -11,9 +11,152 @@
 const User = require("../models/User");
 const Event = require("../models/Event");
 const Session = require("../models/Session");
+const Trigger = require("../models/Trigger");
+const Notification = require("../models/Notification");
 const generateToken = require("../utils/generateToken");
 
-const ENGINE_ANALYTICS_URL = process.env.ENGINE_ANALYTICS_URL || "http://localhost:8000/admin/analytics/summary";
+const ENGINE_ANALYTICS_URL = process.env.ENGINE_ANALYTICS_URL || "http://127.0.0.1:8000/admin/analytics/summary";
+
+const isValidObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(String(id || ""));
+const FORM_EVENT_TYPES = ["form_start", "form_submit", "form_abandon", "checkout_start", "checkout_complete", "checkout_abandon"];
+
+const getEngineBaseUrl = () => {
+  const configured = process.env.ENGINE_URL || "http://127.0.0.1:8000/analyze";
+  return configured.replace(/\/analyze\/?$/, "").replace(/\/+$/, "");
+};
+
+const getFormAnalytics = async () => {
+  const formMatch = { eventType: { $in: FORM_EVENT_TYPES } };
+  const formTypeExpr = {
+    $ifNull: [
+      "$formType",
+      {
+        $ifNull: [
+          "$metadata.form",
+          { $ifNull: ["$metadata.formType", "unknown"] },
+        ],
+      },
+    ],
+  };
+
+  const [totals, perUser] = await Promise.all([
+    Event.aggregate([
+      { $match: formMatch },
+      {
+        $group: {
+          _id: null,
+          started: {
+            $sum: { $cond: [{ $in: ["$eventType", ["form_start", "checkout_start"]] }, 1, 0] },
+          },
+          completed: {
+            $sum: { $cond: [{ $in: ["$eventType", ["form_submit", "checkout_complete"]] }, 1, 0] },
+          },
+          discarded: {
+            $sum: { $cond: [{ $in: ["$eventType", ["form_abandon", "checkout_abandon"]] }, 1, 0] },
+          },
+          users: { $addToSet: "$userId" },
+        },
+      },
+    ]),
+    Event.aggregate([
+      { $match: formMatch },
+      {
+        $group: {
+          _id: { userId: "$userId", formType: formTypeExpr },
+          started: {
+            $sum: { $cond: [{ $in: ["$eventType", ["form_start", "checkout_start"]] }, 1, 0] },
+          },
+          completed: {
+            $sum: { $cond: [{ $in: ["$eventType", ["form_submit", "checkout_complete"]] }, 1, 0] },
+          },
+          discarded: {
+            $sum: { $cond: [{ $in: ["$eventType", ["form_abandon", "checkout_abandon"]] }, 1, 0] },
+          },
+          lastActivity: { $max: "$timestamp" },
+          lastCompletionPercent: { $max: "$metadata.completionPercent" },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id.userId",
+          forms: {
+            $push: {
+              formType: "$_id.formType",
+              started: "$started",
+              completed: "$completed",
+              discarded: "$discarded",
+              completionRate: {
+                $cond: [{ $gt: ["$started", 0] }, { $multiply: [{ $divide: ["$completed", "$started"] }, 100] }, 0],
+              },
+              discardRate: {
+                $cond: [{ $gt: ["$started", 0] }, { $multiply: [{ $divide: ["$discarded", "$started"] }, 100] }, 0],
+              },
+              lastCompletionPercent: { $ifNull: ["$lastCompletionPercent", null] },
+            },
+          },
+          started: { $sum: "$started" },
+          completed: { $sum: "$completed" },
+          discarded: { $sum: "$discarded" },
+          lastActivity: { $max: "$lastActivity" },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id",
+          fullName: { $ifNull: ["$user.fullName", "Unknown user"] },
+          email: { $ifNull: ["$user.email", null] },
+          started: 1,
+          completed: 1,
+          discarded: 1,
+          completionRate: {
+            $cond: [{ $gt: ["$started", 0] }, { $multiply: [{ $divide: ["$completed", "$started"] }, 100] }, 0],
+          },
+          discardRate: {
+            $cond: [{ $gt: ["$started", 0] }, { $multiply: [{ $divide: ["$discarded", "$started"] }, 100] }, 0],
+          },
+          forms: 1,
+          lastActivity: 1,
+        },
+      },
+      { $sort: { lastActivity: -1 } },
+      { $limit: 25 },
+    ]),
+  ]);
+
+  const total = totals[0] || { started: 0, completed: 0, discarded: 0, users: [] };
+  const started = total.started || 0;
+
+  return {
+    summary: {
+      started,
+      completed: total.completed || 0,
+      discarded: total.discarded || 0,
+      users: total.users?.length || 0,
+      completionRate: started > 0 ? Math.round(((total.completed || 0) / started) * 100) : 0,
+      discardRate: started > 0 ? Math.round(((total.discarded || 0) / started) * 100) : 0,
+    },
+    users: perUser.map((entry) => ({
+      ...entry,
+      completionRate: Math.round(entry.completionRate || 0),
+      discardRate: Math.round(entry.discardRate || 0),
+      forms: (entry.forms || []).map((form) => ({
+        ...form,
+        completionRate: Math.round(form.completionRate || 0),
+        discardRate: Math.round(form.discardRate || 0),
+      })),
+    })),
+  };
+};
 
 /* ═══════════════════════════════════════════════════════════
  * ADMIN LOGIN
@@ -105,14 +248,17 @@ const getAllUsers = async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 50;
     const skip = (page - 1) * limit;
 
-    const [users, total] = await Promise.all([
-      User.find()
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      User.countDocuments(),
-    ]);
+    const allUsers = await User.find().sort({ createdAt: -1 }).lean();
+    const uniqueByEmail = new Map();
+
+    for (const user of allUsers) {
+      const key = String(user.email || user._id).toLowerCase();
+      if (!uniqueByEmail.has(key)) uniqueByEmail.set(key, user);
+    }
+
+    const dedupedUsers = [...uniqueByEmail.values()];
+    const users = dedupedUsers.slice(skip, skip + limit);
+    const total = dedupedUsers.length;
 
     return res.status(200).json({
       success: true,
@@ -223,6 +369,7 @@ const getAnalytics = async (req, res) => {
       eventsByType,
       usersByProvider,
       dailySignups,
+      formAnalytics,
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ createdAt: { $gte: last24h } }),
@@ -249,6 +396,7 @@ const getAnalytics = async (req, res) => {
         },
         { $sort: { _id: 1 } },
       ]),
+      getFormAnalytics(),
     ]);
 
     // Fetch engine-level behavioral summary
@@ -279,11 +427,116 @@ const getAnalytics = async (req, res) => {
         usersByProvider,
         dailySignups,
         behavioralSummary: engineSummary,
+        formAnalytics,
       },
     });
   } catch (error) {
     console.error("Get analytics error:", error.message);
     return res.status(500).json({ success: false, message: "Failed to fetch analytics" });
+  }
+};
+
+/**
+ * DELETE /api/admin/users/:id
+ * Deletes a user and their associated data.
+ */
+const deleteUser = async (req, res) => {
+  try {
+    const requestedId = req.params.id;
+    const body = req.body || {};
+    const identifiers = new Set(
+      [requestedId, body.userId, body.engineUserId, body.trackingUserId, body.clientSessionId, body.guestId]
+        .filter(Boolean)
+        .map(String)
+    );
+    (Array.isArray(body.aliases) ? body.aliases : []).forEach((alias) => {
+      if (alias) identifiers.add(String(alias));
+    });
+
+    const requestedEmail = body.email ? String(body.email).toLowerCase().trim() : null;
+    let usersToDelete = [];
+
+    if (isValidObjectId(requestedId)) {
+      const user = await User.findById(requestedId).lean();
+      if (user?.email) {
+        usersToDelete = await User.find({ email: user.email }).lean();
+      } else if (user) {
+        usersToDelete = [user];
+      }
+    } else if (requestedEmail) {
+      usersToDelete = await User.find({ email: requestedEmail }).lean();
+    } else if (String(requestedId).includes("@")) {
+      usersToDelete = await User.find({ email: String(requestedId).toLowerCase().trim() }).lean();
+    }
+
+    const userIds = usersToDelete.map((user) => user._id);
+    usersToDelete.forEach((user) => {
+      identifiers.add(String(user._id));
+      if (user.email) identifiers.add(String(user.email).toLowerCase());
+    });
+
+    const [deletedUsers, deletedSessions, deletedEvents, deletedTriggers, deletedNotifications] = userIds.length > 0
+      ? await Promise.all([
+          User.deleteMany({ _id: { $in: userIds } }),
+          Session.deleteMany({ userId: { $in: userIds } }),
+          Event.deleteMany({ userId: { $in: userIds } }),
+          Trigger.deleteMany({ userId: { $in: userIds } }),
+          Notification.deleteMany({ userId: { $in: userIds } }),
+        ])
+      : [
+          { deletedCount: 0 },
+          { deletedCount: 0 },
+          { deletedCount: 0 },
+          { deletedCount: 0 },
+          { deletedCount: 0 },
+        ];
+
+    let engineDeleted = [];
+    try {
+      const engineRes = await fetch(`${getEngineBaseUrl()}/admin/sessions/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifiers: [...identifiers] }),
+      });
+      if (engineRes.ok) {
+        const engineData = await engineRes.json();
+        engineDeleted = engineData.deleted || [];
+      }
+    } catch (e) {
+      console.warn("Failed to notify engine of user deletion:", e.message);
+    }
+
+    const totalDeleted =
+      deletedUsers.deletedCount +
+      deletedSessions.deletedCount +
+      deletedEvents.deletedCount +
+      deletedTriggers.deletedCount +
+      deletedNotifications.deletedCount +
+      engineDeleted.length;
+
+    if (totalDeleted === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No matching user, session, or engine identity was found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User identity deleted globally",
+      data: {
+        deletedUsers: deletedUsers.deletedCount,
+        deletedSessions: deletedSessions.deletedCount,
+        deletedEvents: deletedEvents.deletedCount,
+        deletedTriggers: deletedTriggers.deletedCount,
+        deletedNotifications: deletedNotifications.deletedCount,
+        deletedEngineSessions: engineDeleted.length,
+        engineDeleted,
+      },
+    });
+  } catch (error) {
+    console.error("Delete user error:", error.message);
+    return res.status(500).json({ success: false, message: "Failed to delete user" });
   }
 };
 
@@ -293,4 +546,5 @@ module.exports = {
   getAllEvents,
   getAllSessions,
   getAnalytics,
+  deleteUser,
 };

@@ -18,8 +18,9 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useEffect } from 'react';
+import { engineApi } from '../utils/apiBase';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = engineApi('');
 
 const CORE_EVENTS = [
   { type: 'page_view', label: 'page_view', description: 'User opened page', icon: Eye },
@@ -66,8 +67,8 @@ export default function EventTracking() {
     const fetchData = async () => {
       try {
         const [usersRes, summaryRes] = await Promise.all([
-          fetch(`${API_BASE}/admin/active-users`),
-          fetch(`${API_BASE}/admin/analytics/summary`),
+          fetch(engineApi('/admin/active-users?event_limit=25')),
+          fetch(engineApi('/admin/analytics/summary')),
         ]);
         if (usersRes.ok) setActiveUsers(await usersRes.json());
         if (summaryRes.ok) setSummary(await summaryRes.json());

@@ -57,9 +57,9 @@ export default function SIPCreationModal({ isOpen, onClose }) {
   const next = () => { if (validateStep()) setStep(s => Math.min(s + 1, 3)); };
   const prev = () => setStep(s => Math.max(s - 1, 0));
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
     setSubmitting(true);
-    trackClick('create_sip', { amount: form.sipAmount, fund: form.selectedFund });
+    trackClick('create_sip', { amount: form.sipAmount, fund: form.selectedFund }, e);
     queueEvent({ eventType: 'form_submit', formType: 'sip_creation', duration: Math.round((Date.now() - startTime.current) / 1000), metadata: { amount: form.sipAmount, fund: form.selectedFund } });
     trackFormComplete();
     await new Promise(r => setTimeout(r, 1800));
@@ -83,11 +83,11 @@ export default function SIPCreationModal({ isOpen, onClose }) {
 
   return (
     <AnimatePresence>
-      <motion.div variants={overlay} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleClose}>
+      <motion.div variants={overlay} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm" onClick={handleClose}>
         <motion.div variants={modal} initial="hidden" animate="visible" exit="exit" className="relative w-full max-w-2xl bg-white rounded-2xl shadow-elevated overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-accent-600 to-accent-500 px-6 py-5 text-white">
+          <div className="bg-gradient-to-r from-accent-600 to-accent-500 px-4 sm:px-6 py-5 text-white">
             <div className="flex items-center justify-between">
               <div><h2 className="text-lg font-bold">{success ? 'SIP Created!' : 'Start New SIP'}</h2><p className="text-accent-100 text-sm mt-0.5">{success ? 'Systematic Investment Plan activated' : STEPS[step]}</p></div>
               <button onClick={handleClose} className="p-2 rounded-lg hover:bg-white/20 transition-colors"><X className="w-5 h-5" /></button>
@@ -100,7 +100,7 @@ export default function SIPCreationModal({ isOpen, onClose }) {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
             {success ? (
               <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-8">
                 <div className="w-20 h-20 rounded-full bg-accent-100 flex items-center justify-center mx-auto mb-4"><CheckCircle2 className="w-10 h-10 text-accent-600" /></div>
@@ -120,7 +120,7 @@ export default function SIPCreationModal({ isOpen, onClose }) {
                       <div className="flex justify-between mt-1"><span className="text-xs text-surface-400">₹500</span><span className="text-lg font-bold text-accent-600">{fmt(form.sipAmount)}</span><span className="text-xs text-surface-400">₹1L</span></div>
                       {errors.sipAmount && <p className="text-xs text-red-500 mt-1">{errors.sipAmount}</p>}
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid sm:grid-cols-3 gap-3">
                       <div><label className="block text-xs font-medium text-surface-600 mb-1">SIP Date</label><select className="input-field text-sm" value={form.sipDate} onChange={e => update('sipDate', e.target.value)}>{['1','5','10','15','20','25'].map(d => <option key={d} value={d}>{d}th</option>)}</select></div>
                       <div><label className="block text-xs font-medium text-surface-600 mb-1">Frequency</label><select className="input-field text-sm" value={form.frequency} onChange={e => update('frequency', e.target.value)}><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option></select></div>
                       <div><label className="block text-xs font-medium text-surface-600 mb-1">Duration (Yrs)</label><input type="number" className="input-field text-sm" min={1} max={30} value={form.duration} onChange={e => update('duration', Number(e.target.value))} />{errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}</div>
@@ -181,12 +181,12 @@ export default function SIPCreationModal({ isOpen, onClose }) {
 
           {/* Footer */}
           {!success && (
-            <div className="px-6 py-4 border-t border-surface-100 flex items-center justify-between bg-surface-50/50">
-              <div>{step > 0 && <button onClick={prev} className="btn-secondary text-sm py-2 px-4 gap-1"><ChevronLeft className="w-4 h-4" />Back</button>}</div>
+            <div className="px-4 sm:px-6 py-4 border-t border-surface-100 flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between bg-surface-50/50">
+              <div>{step > 0 && <button onClick={prev} className="btn-secondary w-full sm:w-auto text-sm py-2 px-4 gap-1"><ChevronLeft className="w-4 h-4" />Back</button>}</div>
               {step < 3 ? (
-                <button onClick={next} className="btn-primary text-sm py-2.5 px-6 gap-1">Continue<ChevronRight className="w-4 h-4" /></button>
+                <button onClick={next} className="btn-primary w-full sm:w-auto text-sm py-2.5 px-6 gap-1">Continue<ChevronRight className="w-4 h-4" /></button>
               ) : (
-                <button onClick={handleSubmit} disabled={submitting} className="btn-accent text-sm py-2.5 px-6 gap-1 disabled:opacity-50">
+                <button onClick={handleSubmit} disabled={submitting} className="btn-accent w-full sm:w-auto text-sm py-2.5 px-6 gap-1 disabled:opacity-50">
                   {submitting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Processing...</> : <><Play className="w-4 h-4" />Start SIP</>}
                 </button>
               )}

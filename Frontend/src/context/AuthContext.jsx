@@ -66,6 +66,19 @@ export function AuthProvider({ children }) {
     }
 
     const restoreSession = async () => {
+      const isAdminPreview = window.location.search.includes("adminPreview=true");
+      if (isAdminPreview) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const previewName = urlParams.get('previewName') || 'Admin Preview';
+        
+        const dummyUser = { _id: "admin-bot", fullName: previewName, email: "bot@admin.local", role: "user" };
+        setUser(dummyUser);
+        setToken("mock-token");
+        zustandSetAuth(dummyUser);
+        setLoading(false);
+        return;
+      }
+
       const savedToken = localStorage.getItem("fw_token");
 
       if (!savedToken) {

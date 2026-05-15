@@ -60,6 +60,18 @@ const sessionSchema = new mongoose.Schema(
       default: "unknown",
     },
 
+    clientIp: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
+    connectionOrigin: {
+      type: String,
+      enum: ["internal", "external", "remote"],
+      default: "external",
+    },
+
     /** Approximate location string, e.g. "Bengaluru, IN" */
     location: {
       type: String,

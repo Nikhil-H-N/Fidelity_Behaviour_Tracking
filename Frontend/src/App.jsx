@@ -6,12 +6,14 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import AdminProtectedRoute from './components/common/AdminProtectedRoute';
 import DashboardLayout from './components/dashboard/DashboardLayout';
 import AdminDashboardLayout from './components/dashboard/AdminDashboardLayout';
-import { useInteractionTracking, useScrollDepth } from './hooks/useTracking';
+import AIChatbot from './components/common/AIChatbot';
+import { useInteractionTracking, useScrollDepth, useSessionLifecycleTracking } from './hooks/useTracking';
 import { getTrackingUserId, queueEvent } from './api/eventService';
 
 function GlobalTracker() {
   useInteractionTracking();
   useScrollDepth();
+  useSessionLifecycleTracking();
   return null;
 }
 
@@ -100,9 +102,20 @@ const Transactions = lazy(() => import('./pages/Transactions'));
 const MutualFunds = lazy(() => import('./pages/MutualFunds'));
 const SIPPlans = lazy(() => import('./pages/SIPPlans'));
 const InvestmentPlans = lazy(() => import('./pages/InvestmentPlans'));
+const InsurancePlans = lazy(() => import('./pages/InsurancePlans'));
+const TaxSaving = lazy(() => import('./pages/TaxSaving'));
+const WealthManagement = lazy(() => import('./pages/WealthManagement'));
+const ProductDetails = lazy(() => import('./pages/ProductDetails'));
+const ApplicationForm = lazy(() => import('./pages/ApplicationForm'));
+const PlanComparison = lazy(() => import('./pages/PlanComparison'));
+const Confirmation = lazy(() => import('./pages/Confirmation'));
 const GoalPlanning = lazy(() => import('./pages/GoalPlanning'));
 const RetirementPlanning = lazy(() => import('./pages/RetirementPlanning'));
+const InvestmentReturnCalculator = lazy(() => import('./pages/InvestmentReturnCalculator'));
 const AIRecommendations = lazy(() => import('./pages/AIRecommendations'));
+const FAQ = lazy(() => import('./pages/FAQ'));
+const BeginnerGuides = lazy(() => import('./pages/BeginnerGuides'));
+const SuccessStories = lazy(() => import('./pages/SuccessStories'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const ProfileSettings = lazy(() => import('./pages/ProfileSettings'));
 const About = lazy(() => import('./pages/About'));
@@ -130,12 +143,36 @@ function PageLoader() {
   );
 }
 
+function AdminPreviewIframeBridge() {
+  useEffect(() => {
+    if (!window.location.search.includes('adminPreview=true')) return;
+    
+    // Hide standard scrollbar in the iframe since the parent will handle scrolling
+    document.documentElement.style.overflowY = 'hidden';
+    
+    const sendHeight = () => {
+      // Use body.scrollHeight for most accurate full content dimension
+      const height = document.body.scrollHeight || document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: 'adminPreviewHeight', height }, '*');
+    };
+
+    const observer = new ResizeObserver(sendHeight);
+    observer.observe(document.body);
+    setTimeout(sendHeight, 500);
+
+    return () => observer.disconnect();
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <Router>
       <AuthProvider>
+        <AdminPreviewIframeBridge />
         <GlobalTracker />
         <TargetedNotificationPoller />
+        <AIChatbot />
         {/* Global toast notifications */}
         <Toaster
           position="top-right"
@@ -172,9 +209,21 @@ export default function App() {
               <Route path="/mutual-funds" element={<MutualFunds />} />
               <Route path="/sip-plans" element={<SIPPlans />} />
               <Route path="/investment-plans" element={<InvestmentPlans />} />
+              <Route path="/insurance-plans" element={<InsurancePlans />} />
+              <Route path="/tax-saving" element={<TaxSaving />} />
+              <Route path="/wealth-management" element={<WealthManagement />} />
+              <Route path="/product-details/:productId" element={<ProductDetails />} />
+              <Route path="/know-more/:productId" element={<ProductDetails />} />
+              <Route path="/checkout/:productId" element={<ApplicationForm />} />
+              <Route path="/plan-comparison" element={<PlanComparison />} />
+              <Route path="/confirmation" element={<Confirmation />} />
               <Route path="/goal-planning" element={<GoalPlanning />} />
               <Route path="/retirement-planning" element={<RetirementPlanning />} />
+              <Route path="/investment-calculator" element={<InvestmentReturnCalculator />} />
               <Route path="/ai-recommendations" element={<AIRecommendations />} />
+              <Route path="/faq" element={<FAQ />} />
+              <Route path="/beginner-guides" element={<BeginnerGuides />} />
+              <Route path="/success-stories" element={<SuccessStories />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/profile" element={<ProfileSettings />} />
             </Route>

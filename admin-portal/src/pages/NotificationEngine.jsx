@@ -15,8 +15,9 @@ import {
   User,
   Zap,
 } from 'lucide-react';
+import { engineApi } from '../utils/apiBase';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = engineApi('');
 
 const TEMPLATES = [
   {
@@ -81,7 +82,7 @@ export default function NotificationEngine() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch(`${API_BASE}/admin/active-users`);
+      const response = await fetch(engineApi('/admin/active-users?include_events=false'));
       if (response.ok) {
         const users = await response.json();
         setActiveUsers(users);
@@ -139,9 +140,11 @@ export default function NotificationEngine() {
     setResult(null);
 
     try {
-      const response = await fetch(`${API_BASE}/admin/notification/dispatch`, {
+      const response = await fetch(engineApi('/admin/notification/dispatch'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           user_id: selectedUserId,
           title,

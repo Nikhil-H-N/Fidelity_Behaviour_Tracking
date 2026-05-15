@@ -4,8 +4,7 @@ import {
   Send, X, MessageSquare, AlertCircle, 
   Zap, Info, CheckCircle2, ShieldAlert
 } from 'lucide-react';
-
-const API_BASE = 'http://localhost:8000';
+import { engineApi } from '../utils/apiBase';
 
 export default function InterventionModal({ isOpen, onClose, userId }) {
   const [type, setType] = useState('INFO');
@@ -19,7 +18,7 @@ export default function InterventionModal({ isOpen, onClose, userId }) {
 
     setSending(true);
     try {
-      const res = await fetch(`${API_BASE}/admin/manual-intervention`, {
+      const res = await fetch(engineApi('/admin/manual-intervention'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

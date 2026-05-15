@@ -67,6 +67,8 @@ const mapRuleToType = (rule) => {
     high_intent_abandoner: "high_intent",
     likely_converter: "conversion",
     form_abandon_nudge: "form_abandon",
+    comparison_without_conversion: "drop_off",
+    checkout_recovery: "form_abandon",
   };
   return map[rule] || "custom";
 };
@@ -77,6 +79,8 @@ const getTriggerTitle = (rule) => {
     high_intent_abandoner: "Complete Your Investment",
     likely_converter: "You're Almost There!",
     form_abandon_nudge: "Pick Up Where You Left Off",
+    comparison_without_conversion: "Need Help Choosing?",
+    checkout_recovery: "Finish Your Application",
   };
   return titles[rule] || "Action Required";
 };

@@ -9,7 +9,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart3, Users, Activity, Radio, Clock, TrendingUp,
-  UserPlus, ArrowUpRight, Loader2, PieChart,
+  UserPlus, ArrowUpRight, Loader2, PieChart, FileCheck2,
+  TimerOff, Percent, AlertTriangle,
 } from 'lucide-react';
 import { getAdminAnalytics } from '../../api/adminService';
 
@@ -40,6 +41,9 @@ export default function AdminAnalyticsPage() {
   }
 
   const overview = analytics?.overview || {};
+  const formAnalytics = analytics?.formAnalytics || {};
+  const formSummary = formAnalytics.summary || {};
+  const formUsers = formAnalytics.users || [];
 
   const metrics = [
     { label: 'Total Users', value: overview.totalUsers || 0, icon: Users, color: 'primary', sub: `+${overview.newUsersWeek || 0} this week` },
@@ -89,6 +93,87 @@ export default function AdminAnalyticsPage() {
           );
         })}
       </div>
+
+      {/* Form Completion */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="kpi-card">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-5">
+          <div>
+            <h3 className="text-lg font-semibold text-surface-900 flex items-center gap-2">
+              <FileCheck2 className="w-5 h-5 text-accent-600" />
+              Form Completion & Discards
+            </h3>
+            <p className="text-sm text-surface-500">Per-user checkout/application form status</p>
+          </div>
+          <span className="text-xs font-semibold text-surface-500">{formSummary.users || 0} users with form activity</span>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[
+            { label: 'Started', value: formSummary.started || 0, icon: Activity, color: 'bg-primary-100 text-primary-600' },
+            { label: 'Completed', value: formSummary.completed || 0, icon: FileCheck2, color: 'bg-accent-100 text-accent-600' },
+            { label: 'Discarded', value: formSummary.discarded || 0, icon: TimerOff, color: 'bg-red-100 text-red-600' },
+            { label: 'Completion Rate', value: `${formSummary.completionRate || 0}%`, icon: Percent, color: 'bg-purple-100 text-purple-600' },
+          ].map((item) => (
+            <div key={item.label} className="rounded-xl bg-surface-50 p-4">
+              <div className={`w-9 h-9 rounded-lg ${item.color} flex items-center justify-center mb-3`}>
+                <item.icon className="w-4 h-4" />
+              </div>
+              <p className="text-2xl font-bold text-surface-900">{item.value}</p>
+              <p className="text-xs text-surface-500 mt-1">{item.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {formUsers.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-surface-400 border-b border-surface-100">
+                  <th className="pb-3 pr-4">User</th>
+                  <th className="pb-3 px-4">Started</th>
+                  <th className="pb-3 px-4">Completed</th>
+                  <th className="pb-3 px-4">Discarded</th>
+                  <th className="pb-3 px-4">Completion</th>
+                  <th className="pb-3 pl-4">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {formUsers.map((user) => (
+                  <tr key={user.userId} className="border-b border-surface-100 last:border-0">
+                    <td className="py-3 pr-4">
+                      <p className="font-semibold text-surface-900">{user.fullName}</p>
+                      <p className="text-xs text-surface-400">{user.email || 'No email'}</p>
+                    </td>
+                    <td className="py-3 px-4 text-surface-700">{user.started}</td>
+                    <td className="py-3 px-4 text-accent-700 font-semibold">{user.completed}</td>
+                    <td className="py-3 px-4 text-red-600 font-semibold">{user.discarded}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 rounded-full bg-surface-100 overflow-hidden">
+                          <div className="h-full rounded-full bg-accent-500" style={{ width: `${Math.min(user.completionRate || 0, 100)}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold text-surface-700">{user.completionRate || 0}%</span>
+                      </div>
+                    </td>
+                    <td className="py-3 pl-4">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        user.discarded > user.completed
+                          ? 'bg-red-50 text-red-700'
+                          : 'bg-accent-50 text-accent-700'
+                      }`}>
+                        {user.discarded > user.completed && <AlertTriangle className="w-3 h-3" />}
+                        {user.discarded > user.completed ? 'Needs follow-up' : 'Healthy'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-surface-400">No form activity recorded yet</p>
+        )}
+      </motion.div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Event Distribution */}

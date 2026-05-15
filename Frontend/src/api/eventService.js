@@ -17,6 +17,25 @@ let eventQueue = [];
 let flushTimer = null;
 const FLUSH_INTERVAL = 3000; // 3 seconds
 const MAX_BATCH_SIZE = 20;
+const LAST_INTERACTION_KEY = 'fw_lastInteractionContext';
+const INTERACTION_HISTORY_KEY = 'fw_interactionHistory';
+const CONTEXT_EVENT_TYPES = new Set([
+  'page_view',
+  'button_click',
+  'cta_click',
+  'form_start',
+  'form_progress',
+  'form_submit',
+  'form_abandon',
+  'checkout_start',
+  'checkout_abandon',
+  'checkout_complete',
+  'product_view',
+  'comparison',
+  'calculator_usage',
+]);
+
+const CHATBOT_LABEL_PATTERN = /open ai assistant|close chatbot|send message|continue recommended path|finova ai/i;
 
 const getGuestId = () => {
   let gid = localStorage.getItem('fw_guestId');
@@ -77,12 +96,98 @@ const buildEvent = (event) => {
   };
 };
 
+const isChatbotContext = (context = {}) => {
+  const label = [
+    context.element,
+    context.product,
+    context.form,
+    context.actionLabel,
+  ].filter(Boolean).join(' ');
+
+  return Boolean(
+    context.isChatbot ||
+    context.surface === 'chatbot' ||
+    context.source === 'chatbot_action' ||
+    String(context.eventType || '').startsWith('chatbot_') ||
+    CHATBOT_LABEL_PATTERN.test(label)
+  );
+};
+
+const isChatbotInteraction = (event) => {
+  const metadata = event.metadata || {};
+  const label = [
+    event.element,
+    metadata.element,
+    event.buttonName,
+    metadata.label,
+    metadata.actionLabel,
+  ].filter(Boolean).join(' ');
+
+  return Boolean(
+    metadata.trackingSurface === 'chatbot' ||
+    metadata.source === 'chatbot_action' ||
+    String(event.eventType || '').startsWith('chatbot_') ||
+    CHATBOT_LABEL_PATTERN.test(label)
+  );
+};
+
+export const getLastInteractionContext = () => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const history = JSON.parse(localStorage.getItem(INTERACTION_HISTORY_KEY) || '[]');
+    const latestNonChatbot = Array.isArray(history)
+      ? history.find((entry) => !isChatbotContext(entry))
+      : null;
+
+    if (latestNonChatbot) return latestNonChatbot;
+
+    const fallback = JSON.parse(localStorage.getItem(LAST_INTERACTION_KEY) || 'null');
+    return fallback && !isChatbotContext(fallback) ? fallback : null;
+  } catch {
+    return null;
+  }
+};
+
+const rememberLastInteraction = (event) => {
+  if (typeof window === 'undefined' || !CONTEXT_EVENT_TYPES.has(event.eventType)) return;
+
+  const metadata = event.metadata || {};
+  const context = {
+    eventType: event.eventType,
+    page: event.page || metadata.page || window.location.pathname,
+    element: event.element || metadata.element || event.buttonName || null,
+    form: event.formType || metadata.form || metadata.formType || null,
+    completion: metadata.completionPercent ?? metadata.completion ?? metadata.progress ?? null,
+    product: metadata.productName || metadata.productId || metadata.fund || null,
+    surface: metadata.trackingSurface || 'page',
+    source: metadata.source || null,
+    actionLabel: metadata.actionLabel || null,
+    isChatbot: isChatbotInteraction(event),
+    timestamp: event.timestamp || new Date().toISOString(),
+  };
+
+  try {
+    const history = JSON.parse(localStorage.getItem(INTERACTION_HISTORY_KEY) || '[]');
+    const nextHistory = [context, ...(Array.isArray(history) ? history : [])].slice(0, 12);
+    localStorage.setItem(INTERACTION_HISTORY_KEY, JSON.stringify(nextHistory));
+
+    if (!context.isChatbot) {
+      localStorage.setItem(LAST_INTERACTION_KEY, JSON.stringify(context));
+    }
+  } catch {
+    // Ignore storage failures; tracking should never block the UI.
+  }
+};
+
 /**
  * Queue a single event for batch dispatch.
  * @param {Object} event
  */
 export const queueEvent = (event) => {
-  eventQueue.push(buildEvent(event));
+  const builtEvent = buildEvent(event);
+  rememberLastInteraction(builtEvent);
+  eventQueue.push(builtEvent);
 
   // Flush immediately if batch is full
   if (eventQueue.length >= MAX_BATCH_SIZE) {

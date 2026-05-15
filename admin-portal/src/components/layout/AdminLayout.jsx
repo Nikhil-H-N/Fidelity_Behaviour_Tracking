@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Zap, ShieldAlert, Trash2, Cpu, 
-  Settings, Radio, Clock, BarChart3, LogOut, Menu, X, Bell, Send
+  Settings, Radio, Clock, BarChart3, LogOut, Menu, X, Bell, Send, Map,
+  Filter, GitBranch
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { engineApi } from '../../utils/apiBase';
 
 export default function AdminLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -12,8 +14,11 @@ export default function AdminLayout() {
   const navItems = [
     { name: 'Overview', icon: LayoutDashboard, path: '/' },
     { name: 'Behavioral Analytics', icon: BarChart3, path: '/analytics' },
+    { name: 'Funnel Analytics', icon: Filter, path: '/funnel' },
+    { name: 'Path Discovery', icon: GitBranch, path: '/path-discovery' },
     { name: 'System Alerts', icon: Bell, path: '/alerts' },
     { name: 'Live Stream', icon: Radio, path: '/live' },
+    { name: 'Click Heatmap', icon: Map, path: '/heatmap' },
     { name: 'Event Tracking', icon: Zap, path: '/events' },
     { name: 'Session Timeline', icon: Clock, path: '/timeline' },
     { name: 'Notification Engine', icon: Send, path: '/notifications' },
@@ -22,7 +27,7 @@ export default function AdminLayout() {
 
   const handleReset = async () => {
     if (confirm('Wipe engine state?')) {
-      await fetch('http://localhost:8000/admin/reset-all-sessions', { method: 'POST' });
+      await fetch(engineApi('/admin/reset-all-sessions'), { method: 'POST' });
       window.location.reload();
     }
   };

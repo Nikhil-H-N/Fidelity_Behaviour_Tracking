@@ -36,8 +36,8 @@ export default function MutualFunds() {
     f.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const openInvest = (fund) => {
-    trackClick('invest_button', { fund: fund.name, page: 'mutual-funds' });
+  const openInvest = (fund, e) => {
+    trackClick('invest_button', { fund: fund.name, page: 'mutual-funds' }, e);
     setInvestModal({ open: true, fund });
   };
 
@@ -99,7 +99,7 @@ export default function MutualFunds() {
                   </div>
                   <div className="text-center"><p className="text-xs text-surface-400">1Y Returns</p><p className="text-lg font-bold text-accent-600">+{fund.returns1y}%</p></div>
                   <div className="text-center hidden md:block"><p className="text-xs text-surface-400">3Y Returns</p><p className="text-lg font-bold text-surface-700">+{fund.returns3y}%</p></div>
-                  <button onClick={() => openInvest(fund)} className="btn-secondary text-sm py-2 px-4 whitespace-nowrap gap-1">
+                  <button onClick={(e) => openInvest(fund, e)} className="btn-secondary text-sm py-2 px-4 whitespace-nowrap gap-1">
                     Invest More <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -123,7 +123,7 @@ export default function MutualFunds() {
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {categories.map(c => (
-              <button key={c} onClick={() => { setFilter(c); trackClick('filter_category', { category: c }); }}
+              <button key={c} onClick={(e) => { setFilter(c); trackClick('filter_category', { category: c }, e); }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${filter === c ? 'bg-primary-600 text-white' : 'bg-white text-surface-600 border border-surface-200 hover:bg-surface-50'}`}>
                 {c}
               </button>
@@ -153,7 +153,7 @@ export default function MutualFunds() {
                   <div className="text-center"><p className="text-xs text-surface-400">1Y Returns</p><p className="text-lg font-bold text-accent-600">+{fund.returns1y}%</p></div>
                   <div className="text-center hidden md:block"><p className="text-xs text-surface-400">3Y Returns</p><p className="text-lg font-bold text-surface-700">+{fund.returns3y}%</p></div>
                   <div className="text-center hidden lg:block"><p className="text-xs text-surface-400">5Y Returns</p><p className="text-lg font-bold text-surface-700">+{fund.returns5y}%</p></div>
-                  <button onClick={() => openInvest(fund)}
+                  <button onClick={(e) => openInvest(fund, e)}
                     className="btn-primary text-sm py-2 px-4 whitespace-nowrap gap-1">
                     Invest <ChevronRight className="w-4 h-4" />
                   </button>

@@ -107,10 +107,10 @@ export default function MutualFundInvestModal({ isOpen, onClose, fund, onInveste
   const next = () => { if (validateStep()) setStep(s => Math.min(s + 1, 3)); };
   const prev = () => setStep(s => Math.max(s - 1, 0));
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e) => {
     if (!validateStep()) return;
     setSubmitting(true);
-    trackClick('invest_now', { fund: fund?.name, amount: form.amount });
+    trackClick('invest_now', { fund: fund?.name, amount: form.amount }, e);
     queueEvent({ eventType: 'form_submit', formType: 'mutual_fund_invest', duration: Math.round((Date.now() - formStartTime.current) / 1000), metadata: { fund: fund?.name, amount: form.amount } });
     trackFormComplete();
     await new Promise(r => setTimeout(r, 1800));
@@ -134,8 +134,8 @@ export default function MutualFundInvestModal({ isOpen, onClose, fund, onInveste
     onClose();
   };
 
-  const saveDraft = () => {
-    trackClick('save_for_later', { fund: fund?.name });
+  const saveDraft = (e) => {
+    trackClick('save_for_later', { fund: fund?.name }, e);
     const completion = calculateFormCompletion(form, REQUIRED);
     queueEvent({ eventType: 'form_save_draft', formType: 'mutual_fund_invest', metadata: { completion, step } });
     // Persist draft to localStorage
@@ -151,11 +151,11 @@ export default function MutualFundInvestModal({ isOpen, onClose, fund, onInveste
 
   return (
     <AnimatePresence>
-      <motion.div variants={overlay} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={handleClose}>
+      <motion.div variants={overlay} initial="hidden" animate="visible" exit="exit" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm" onClick={handleClose}>
         <motion.div variants={modal} initial="hidden" animate="visible" exit="exit" className="relative w-full max-w-xl bg-white rounded-2xl shadow-elevated overflow-hidden max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-primary-600 to-primary-500 px-6 py-5 text-white">
+          <div className="bg-gradient-to-r from-primary-600 to-primary-500 px-4 sm:px-6 py-5 text-white">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-bold">{success ? 'Investment Confirmed!' : `Invest in ${fund?.name || 'Fund'}`}</h2>
@@ -177,7 +177,7 @@ export default function MutualFundInvestModal({ isOpen, onClose, fund, onInveste
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
             {success ? (
               <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center py-8">
                 <div className="w-20 h-20 rounded-full bg-accent-100 flex items-center justify-center mx-auto mb-4">
@@ -196,7 +196,7 @@ export default function MutualFundInvestModal({ isOpen, onClose, fund, onInveste
                     <Field label="Investment Amount (₹)" icon={IndianRupee} error={errors.amount}>
                       <input type="number" className="input-field" placeholder="Min ₹500" value={form.amount} onChange={e => update('amount', e.target.value)} onBlur={() => trackFieldBlur('amount')} />
                     </Field>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
                       <Field label="Risk Appetite" error={errors.riskAppetite}>
                         <select className="input-field" value={form.riskAppetite} onChange={e => update('riskAppetite', e.target.value)}>
                           <option value="">Select</option>
@@ -226,7 +226,7 @@ export default function MutualFundInvestModal({ isOpen, onClose, fund, onInveste
                   </>)}
 
                   {step === 1 && (<>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid sm:grid-cols-2 gap-4">
                       <Field label="PAN Number" icon={CreditCard} error={errors.pan}>
                         <input className="input-field uppercase" placeholder="ABCDE1234F" maxLength={10} value={form.pan} onChange={e => update('pan', e.target.value.toUpperCase())} onBlur={() => trackFieldBlur('pan')} />
                       </Field>
@@ -297,15 +297,15 @@ export default function MutualFundInvestModal({ isOpen, onClose, fund, onInveste
 
           {/* Footer */}
           {!success && (
-            <div className="px-6 py-4 border-t border-surface-100 flex items-center justify-between bg-surface-50/50">
-              <div className="flex gap-2">
-                {step > 0 && <button onClick={prev} className="btn-secondary text-sm py-2 px-4 gap-1"><ChevronLeft className="w-4 h-4" />Back</button>}
-                <button onClick={saveDraft} className="text-sm text-surface-500 hover:text-primary-600 px-3 py-2 flex items-center gap-1"><Bookmark className="w-3.5 h-3.5" />Save Draft</button>
+            <div className="px-4 sm:px-6 py-4 border-t border-surface-100 flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between bg-surface-50/50">
+              <div className="flex flex-col sm:flex-row gap-2">
+                {step > 0 && <button onClick={prev} className="btn-secondary w-full sm:w-auto text-sm py-2 px-4 gap-1"><ChevronLeft className="w-4 h-4" />Back</button>}
+                <button onClick={saveDraft} className="w-full sm:w-auto text-sm text-surface-500 hover:text-primary-600 px-3 py-2 flex items-center justify-center gap-1"><Bookmark className="w-3.5 h-3.5" />Save Draft</button>
               </div>
               {step < 3 ? (
-                <button onClick={next} className="btn-primary text-sm py-2.5 px-6 gap-1">Continue<ChevronRight className="w-4 h-4" /></button>
+                <button onClick={next} className="btn-primary w-full sm:w-auto text-sm py-2.5 px-6 gap-1">Continue<ChevronRight className="w-4 h-4" /></button>
               ) : (
-                <button onClick={handleSubmit} disabled={submitting} className="btn-accent text-sm py-2.5 px-6 gap-1 disabled:opacity-50">
+                <button onClick={handleSubmit} disabled={submitting} className="btn-accent w-full sm:w-auto text-sm py-2.5 px-6 gap-1 disabled:opacity-50">
                   {submitting ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Processing...</> : <><Shield className="w-4 h-4" />Invest Now</>}
                 </button>
               )}

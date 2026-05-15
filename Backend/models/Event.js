@@ -35,9 +35,13 @@ const EVENT_TYPES = [
   "form_submit",
   "form_complete",
   "form_abandon",
+  "form_validation_error",
+  "form_progress",
   "session_start",
   "session_end",
   "notification_open",
+  "notification_click",
+  "notification_dismiss",
   "return_visit",
   "repeated_page_visit",
   "mouse_movement",
@@ -53,9 +57,22 @@ const EVENT_TYPES = [
   "field_change",
   "form_save_draft",
   "investment_intent",
+  "product_view",
+  "comparison",
+  "checkout_start",
+  "checkout_abandon",
+  "checkout_complete",
+  "calculator_usage",
+  "download_brochure",
+  "contact_advisor",
+  "chatbot_open",
+  "chatbot_message",
+  "chatbot_recommendation",
+  "page_visibility",
   "modal_open",
   "modal_close",
   "page_exit",
+  "tab_close",
 ];
 
 const eventSchema = new mongoose.Schema(
@@ -145,6 +162,18 @@ const eventSchema = new mongoose.Schema(
       type: Number,
       min: 0,
       max: 100,
+      default: null,
+    },
+
+    /** X coordinate for click heatmaps */
+    x: {
+      type: Number,
+      default: null,
+    },
+
+    /** Y coordinate for click heatmaps */
+    y: {
+      type: Number,
       default: null,
     },
 

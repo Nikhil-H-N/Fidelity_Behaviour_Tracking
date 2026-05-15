@@ -22,6 +22,7 @@ const trackEvent = async (req, res) => {
   try {
     const { event, events, guestId, sessionId } = req.body;
     const userId = req.user?._id || guestId || sessionId || "anonymous_guest";
+    const clientIp = req.ip || req.headers["x-forwarded-for"] || req.connection.remoteAddress;
 
     // Normalize to array
     const payload = events || (event ? [event] : []);
@@ -34,7 +35,7 @@ const trackEvent = async (req, res) => {
     }
 
     // Process through tracking service (enrichment + intent + rules)
-    const result = await processBatchEvents(userId, payload);
+    const result = await processBatchEvents(userId, payload, clientIp);
 
     // Process any triggered behavioral rules
     if (result.triggers && result.triggers.length > 0) {

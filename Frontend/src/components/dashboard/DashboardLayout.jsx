@@ -19,14 +19,20 @@ const navItems = [
     { name: 'Mutual Funds', icon: BarChart3, path: '/mutual-funds' },
     { name: 'SIP Plans', icon: LineChart, path: '/sip-plans' },
     { name: 'Investment Plans', icon: Wallet, path: '/investment-plans' },
+    { name: 'Insurance', icon: Shield, path: '/insurance-plans' },
+    { name: 'Tax Saving', icon: TrendingUp, path: '/tax-saving' },
+    { name: 'Wealth', icon: Users, path: '/wealth-management' },
   ]},
   { section: 'Plan', items: [
     { name: 'Goal Planning', icon: Target, path: '/goal-planning' },
     { name: 'Retirement', icon: Shield, path: '/retirement-planning' },
+    { name: 'Compare Plans', icon: Activity, path: '/plan-comparison' },
+    { name: 'Return Calculator', icon: Radio, path: '/investment-calculator' },
   ]},
 
   { section: 'Other', items: [
     { name: 'AI Insights', icon: Brain, path: '/ai-recommendations' },
+    { name: 'Beginner Guides', icon: HelpCircle, path: '/beginner-guides' },
     { name: 'Notifications', icon: Bell, path: '/notifications' },
     { name: 'Settings', icon: Settings, path: '/profile' },
   ]},

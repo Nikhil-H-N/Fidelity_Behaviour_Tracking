@@ -15,10 +15,12 @@ import {
   TimerOff,
   User,
   Zap,
+  Trash2,
 } from 'lucide-react';
 import InterventionModal from '../components/InterventionModal';
+import { engineApi, backendApi } from '../utils/apiBase';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = engineApi('');
 
 const formatDuration = (seconds = 0) => {
   const safeSeconds = Math.max(0, Math.round(seconds || 0));
@@ -32,7 +34,12 @@ const formatClock = (timestamp) => {
   return new Date(timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
-const userInitial = (userId = 'U') => userId.replace(/[^a-z0-9]/gi, '').charAt(0).toUpperCase() || 'U';
+const getDisplayName = (user) => {
+  if (!user) return 'Unknown';
+  return String(user.metadata?.email || user.metadata?.name || user.user_id);
+};
+
+const userInitial = (name = 'U') => name.replace(/[^a-z0-9]/gi, '').charAt(0).toUpperCase() || 'U';
 
 export default function SessionTimeline() {
   const [activeUsers, setActiveUsers] = useState([]);
@@ -47,8 +54,8 @@ export default function SessionTimeline() {
   const fetchUsers = async () => {
     try {
       const [usersRes, summaryRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/active-users`),
-        fetch(`${API_BASE}/admin/analytics/summary`),
+        fetch(engineApi('/admin/active-users?include_events=false')),
+        fetch(engineApi('/admin/analytics/summary')),
       ]);
       if (usersRes.ok) setActiveUsers(await usersRes.json());
       if (summaryRes.ok) setSummary(await summaryRes.json());
@@ -62,7 +69,7 @@ export default function SessionTimeline() {
   const fetchReport = async (userId) => {
     if (!userId) return;
     try {
-      const res = await fetch(`${API_BASE}/admin/user-report/${encodeURIComponent(userId)}`);
+      const res = await fetch(engineApi(`/admin/user-report/${encodeURIComponent(userId)}`));
       if (res.ok) setReport(await res.json());
     } catch (error) {
       console.error('Failed to fetch user report:', error);
@@ -74,6 +81,42 @@ export default function SessionTimeline() {
     const interval = setInterval(fetchUsers, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    if (!window.confirm(`Are you sure you want to permanently delete user ${getDisplayName(selectedSession)}? They will need to sign up again.`)) return;
+    try {
+      const token = localStorage.getItem('adminToken');
+      const metadata = selectedSession?.metadata || {};
+      const res = await fetch(backendApi(`/api/admin/users/${selectedUser}`), {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          engineUserId: selectedUser,
+          email: metadata.email,
+          userName: metadata.name,
+          clientSessionId: metadata.client_session_id,
+          trackingUserId: metadata.tracking_user_id,
+          aliases: selectedSession?.aliases || [],
+        }),
+      });
+      if (res.ok) {
+        setSelectedUser(null);
+        setReport(null);
+        setActiveUsers((users) => users.filter((user) => user.user_id !== selectedUser));
+        fetchUsers();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete user');
+    }
+  };
 
   useEffect(() => {
     setReport(null);
@@ -87,7 +130,8 @@ export default function SessionTimeline() {
 
   const now = Date.now() / 1000;
   const filteredUsers = activeUsers.filter((user) => {
-    const matchesSearch = user.user_id.toLowerCase().includes(search.toLowerCase());
+    const dName = getDisplayName(user).toLowerCase();
+    const matchesSearch = dName.includes(search.toLowerCase());
     const isActive = (now - user.last_active) < 60;
     return matchesSearch && (!filterActive || isActive);
   });
@@ -97,8 +141,21 @@ export default function SessionTimeline() {
     [activeUsers, selectedUser]
   );
 
-  const replayTimeline = report?.replay_timeline || selectedSession?.replay_timeline || [];
-  const navigationFlow = report?.session?.navigation_flow || selectedSession?.navigation_flow || [];
+  const replayTimeline = useMemo(() => {
+    const timeline = report?.replay_timeline || selectedSession?.replay_timeline || [];
+    return [...timeline].sort((a, b) => b.timestamp - a.timestamp);
+  }, [report, selectedSession]);
+  const signalDefinitions = [
+    { key: 'rage_click_detected', label: 'Rage clicks detected' },
+    { key: 'high_hesitation', label: 'High hesitation' },
+    { key: 'churn_risk', label: 'Churn risk' },
+    { key: 'inactive_session', label: 'Inactive session' },
+    { key: 'bounce_detected', label: 'Bounce detected' },
+  ];
+  const navigationFlow = useMemo(() => {
+    const flow = report?.session?.navigation_flow || selectedSession?.navigation_flow || [];
+    return [...flow].sort((a, b) => b.timestamp - a.timestamp);
+  }, [report, selectedSession]);
   const pagesVisited = report?.session?.pages_visited || selectedSession?.pages_visited || [];
   const sessionDuration = report?.session?.total_duration ?? selectedSession?.total_duration ?? 0;
 
@@ -163,17 +220,17 @@ export default function SessionTimeline() {
                   >
                     <div className="relative">
                       <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs ${selectedUser === user.user_id ? 'bg-primary-500 text-white' : 'bg-surface-800 text-surface-400'}`}>
-                        {userInitial(user.user_id)}
+                        {userInitial(getDisplayName(user))}
                       </div>
                       {isActive && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-surface-900 animate-pulse" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-bold text-surface-200 truncate">{user.user_id}</p>
+                        <p className="text-sm font-bold text-surface-200 truncate" title={user.user_id}>{getDisplayName(user)}</p>
                         {isActive && <span className="text-[8px] font-black text-emerald-400 uppercase">Active</span>}
                       </div>
                       <p className="text-[10px] text-surface-500 font-medium uppercase tracking-tighter">
-                        {formatDuration(user.total_duration)} / {user.pages_visited?.length || 0} pages
+                        {formatDuration(user.total_duration)} / {user.pages_visited?.length || 0} pages / Active {formatDuration(now - user.last_active)} ago
                       </p>
                     </div>
                   </button>
@@ -202,11 +259,11 @@ export default function SessionTimeline() {
               <div className="bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
                 <div className="flex flex-col md:flex-row md:items-center gap-6 mb-8 p-6 rounded-2xl bg-surface-950 border border-surface-800">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center text-white font-bold text-3xl shadow-lg shadow-primary-900/20">
-                    {userInitial(selectedUser)}
+                    {userInitial(getDisplayName(selectedSession))}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-3 mb-1">
-                      <h2 className="text-2xl font-bold text-white truncate">{selectedUser}</h2>
+                      <h2 className="text-2xl font-bold text-white truncate" title={selectedUser}>{getDisplayName(selectedSession)}</h2>
                       <span className="px-3 py-1 bg-primary-500/10 text-primary-400 border border-primary-500/20 rounded-full text-[10px] font-bold uppercase tracking-widest">
                         {report.summary.persona.replace(/_/g, ' ')}
                       </span>
@@ -214,12 +271,20 @@ export default function SessionTimeline() {
                     <p className="text-surface-400 text-sm">
                       Engine Assessment: <span className="font-bold text-primary-400 uppercase tracking-tighter">{report.summary.final_intent.replace(/_/g, ' ')}</span>
                     </p>
-                    <button
-                      onClick={() => setIsInterventionModalOpen(true)}
-                      className="mt-4 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-primary-900/20"
-                    >
-                      <MessageSquare className="w-4 h-4" /> Send Custom Message
-                    </button>
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => setIsInterventionModalOpen(true)}
+                        className="px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-primary-900/20"
+                      >
+                        <MessageSquare className="w-4 h-4" /> Send Custom Message
+                      </button>
+                      <button
+                        onClick={handleDeleteUser}
+                        className="px-4 py-2 bg-red-600/10 border border-red-500/20 hover:bg-red-600/20 text-red-400 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg"
+                      >
+                        <Trash2 className="w-4 h-4" /> Delete User
+                      </button>
+                    </div>
                   </div>
                   <div className="text-right flex flex-col items-end">
                     <span className="text-4xl font-black text-white leading-none">{Math.round(report.summary.overall_score)}</span>
@@ -227,10 +292,11 @@ export default function SessionTimeline() {
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4">
                   {[
                     { label: 'Session Start', value: formatClock(report.session.session_start), icon: Clock },
                     { label: 'Total Duration', value: formatDuration(sessionDuration), icon: Activity },
+                    { label: 'Last Active', value: `${formatDuration(now - (selectedSession?.last_active || 0))} ago`, icon: Radio },
                     { label: 'Pages Visited', value: pagesVisited.length, icon: Footprints },
                     { label: 'Bounce Status', value: report.session.bounce ? 'Bounced' : 'Engaged', icon: TimerOff },
                   ].map((metric) => (
@@ -265,16 +331,30 @@ export default function SessionTimeline() {
                 </div>
 
                 <div className="bg-surface-900 border border-surface-800 rounded-2xl p-6 shadow-xl">
-                  <h3 className="font-bold text-white mb-6 flex items-center gap-2 text-lg">
-                    <Info className="w-5 h-5 text-primary-400" /> Session Signals
-                  </h3>
+                  <div className="flex items-center justify-between gap-3 mb-6">
+                    <h3 className="font-bold text-white flex items-center gap-2 text-lg">
+                      <Info className="w-5 h-5 text-primary-400" /> Session Signals
+                    </h3>
+                    <span className="text-[10px] uppercase tracking-widest text-surface-500">Green = no issue, red = flagged</span>
+                  </div>
                   <div className="grid grid-cols-1 gap-3">
-                    {Object.entries(report.psychological_flags || {}).map(([flag, active]) => (
-                      <div key={flag} className={`flex items-center justify-between p-3 rounded-xl border ${active ? 'bg-red-500/5 border-red-500/20 text-red-400' : 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'}`}>
-                        <span className="text-[10px] font-bold uppercase tracking-wider">{flag.replace(/_/g, ' ')}</span>
-                        {active ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                      </div>
-                    ))}
+                    {signalDefinitions.map(({ key, label }) => {
+                      const active = report?.psychological_flags?.[key];
+                      return (
+                        <div
+                          key={key}
+                          className={`flex items-center justify-between p-4 rounded-2xl border ${active ? 'bg-red-500/10 border-red-500/20 text-red-300' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200'}`}
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white truncate">{label}</p>
+                            <p className="text-[10px] text-surface-500 mt-1">{active ? 'Flagged' : 'Not flagged'}</p>
+                          </div>
+                          <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase ${active ? 'bg-red-500/15 text-red-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+                            {active ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

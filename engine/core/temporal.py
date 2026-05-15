@@ -14,7 +14,9 @@ class TemporalEngine:
                 "total_dwell_time": sum([(e.get('dwell_time') or 0) for e in events]),
                 "hesitation_pause_detected": False,
                 "scroll_velocity": "STABLE",
-                "hover_tendency": "NONE"
+                "hover_tendency": "NONE",
+                "night_browsing": False,
+                "weekend_browsing": False
             }
             
         # Click Timing Analysis
@@ -60,6 +62,12 @@ class TemporalEngine:
         # Hover Analysis (Section 30)
         hover_tendency = TemporalEngine.analyze_hovers(events)
 
+        # Temporal Context (Section 45: Night/Weekend)
+        last_ts = events[-1]['timestamp']
+        struct_time = time.localtime(last_ts)
+        is_night = struct_time.tm_hour >= 23 or struct_time.tm_hour < 5
+        is_weekend = struct_time.tm_wday >= 5 # 5=Sat, 6=Sun
+
         return {
             "avg_click_interval": avg_click_interval,
             "click_velocity": click_velocity,
@@ -67,7 +75,9 @@ class TemporalEngine:
             "total_dwell_time": total_dwell,
             "hesitation_pause_detected": hesitation_pause,
             "scroll_velocity": scroll_velocity,
-            "hover_tendency": hover_tendency
+            "hover_tendency": hover_tendency,
+            "night_browsing": is_night,
+            "weekend_browsing": is_weekend
         }
 
     @staticmethod

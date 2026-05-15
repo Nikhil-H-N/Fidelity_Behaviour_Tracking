@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Calculator, TrendingUp, Target, ArrowRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { usePageTracking } from '../hooks/useTracking';
+import { queueEvent } from '../api/eventService';
 import { formatCurrency } from '../utils/formatters';
 
 export default function RetirementPlanning() {
@@ -11,6 +12,14 @@ export default function RetirementPlanning() {
   const [retireAge, setRetireAge] = useState(60);
   const [monthly, setMonthly] = useState(25000);
   const [existing, setExisting] = useState(500000);
+
+  useEffect(() => {
+    queueEvent({
+      eventType: 'calculator_usage',
+      page: '/retirement-planning',
+      metadata: { calculator: 'retirement', age, retireAge, monthly, existing },
+    });
+  }, [age, retireAge, monthly, existing]);
 
   const years = retireAge - age;
   const rate = 0.12;
